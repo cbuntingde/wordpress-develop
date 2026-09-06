@@ -51,6 +51,8 @@ define( 'ARRAY_N', 'ARRAY_N' );
  *
  * @since 0.71
  */
+require_once ABSPATH . WPINC . '/database/load.php';
+
 #[AllowDynamicProperties]
 class wpdb {
 
@@ -633,6 +635,20 @@ class wpdb {
 	 * @var bool
 	 */
 	public $is_mysql = null;
+
+	/**
+	 * The DatabaseDialect instance for the connected engine.
+	 *
+	 * Set during db_connect(), right after mysqli_real_connect() succeeds.
+	 * Vendor detection happens once, here; nothing downstream branches on
+	 * vendor. Application code reads this property and dispatches through
+	 * the DatabaseDialect interface.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @var DatabaseDialect|null
+	 */
+	public readonly ?DatabaseDialect $dialect = null;
 
 	/**
 	 * A list of incompatible SQL modes.
@@ -2062,6 +2078,18 @@ class wpdb {
 			$this->has_connected = true;
 
 			$this->set_charset( $this->dbh );
+
+			/*
+			 * Vendor detection happens here, once, after a successful
+			 * mysqli_real_connect() and before the connection is marked
+			 * ready. Application code reads $this->dialect and dispatches
+			 * through the DatabaseDialect interface; nothing downstream
+			 * branches on vendor.
+			 */
+			$server_info = $this->db_server_info();
+			$this->dialect = ( false !== stripos( $server_info, 'mariadb' ) )
+				? new MariaDbDialect()
+				: new MySqlDialect();
 
 			$this->ready = true;
 			$this->set_sql_mode();
@@ -4106,12 +4134,15 @@ class wpdb {
 	public function check_database_version() {
 		global $required_mysql_version, $required_mariadb_version;
 
-		$server_info = $this->db_server_info();
-		$server_ver  = $this->db_version();
+		$server_ver = $this->db_version();
 
-		$is_mariadb = ( false !== stripos( $server_info, 'mariadb' ) );
-
-		if ( $is_mariadb ) {
+		/*
+		 * Vendor detection happens once, in db_connect(), and the result
+		 * lives on $this->dialect. This method reads the dialect instead
+		 * of re-detecting so a single source of truth for vendor lives at
+		 * the connection boundary.
+		 */
+		if ( $this->dialect instanceof MariaDbDialect ) {
 			if ( version_compare( $server_ver, $required_mariadb_version, '<' ) ) {
 				return new WP_Error(
 					'database_version',
@@ -4127,9 +4158,7 @@ class wpdb {
 			return;
 		}
 
-		// Not MariaDB — treat as MySQL. MySQL 8.0–8.3 do NOT pass per the MySQL
-		// floor decision in MODERNIZATION_PLAN.md 'Decisions that sharpen or
-		// override the Spec'.
+		// MySQL 8.0–8.3 do NOT pass; the floor is 8.4 LTS.
 		if ( version_compare( $server_ver, $required_mysql_version, '<' ) ) {
 			return new WP_Error(
 				'database_version',

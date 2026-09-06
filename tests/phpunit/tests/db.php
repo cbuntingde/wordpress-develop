@@ -552,6 +552,19 @@ class Tests_DB extends WP_UnitTestCase {
 		$this->assertSame( 'db_not_connected', $result->get_error_code() );
 	}
 
+	public function test_dialect_is_set_and_matches_running_engine() {
+		global $wpdb;
+
+		$this->assertInstanceOf( DatabaseDialect::class, $wpdb->dialect );
+
+		$server_info = $wpdb->db_server_info();
+		if ( false !== stripos( $server_info, 'mariadb' ) ) {
+			$this->assertInstanceOf( MariaDbDialect::class, $wpdb->dialect );
+		} else {
+			$this->assertInstanceOf( MySqlDialect::class, $wpdb->dialect );
+		}
+	}
+
 	public function test_bail() {
 		global $wpdb;
 
