@@ -66,8 +66,15 @@
 
 	<rule ref="PHPCompatibilityWP"/>
 
-	<!-- WordPress Core currently supports PHP 7.4+. -->
-	<config name="testVersion" value="7.4-"/>
+	<!--
+		PHP 8.5 is the floor enforced by Phase 1 (see
+		`src/wp-load.php`, `src/wp-includes/version.php`,
+		and `.version-support-php.json`). Compatibility scans must
+		not flag code that requires 8.5+ features, so the lower bound
+		is 8.5 — anything below 8.5 is rejected at runtime, not just
+		flagged by tooling.
+	-->
+	<config name="testVersion" value="8.5-"/>
 
 	<!--
 	#############################################################################
