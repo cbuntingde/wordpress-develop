@@ -1,217 +1,122 @@
 # WordPress
 
-Welcome to the WordPress development repository! Please check out the [contributor handbook](https://make.wordpress.org/core/handbook/) for information about how to open bug reports, contribute patches, test changes, write documentation, or get involved in any way you can.
+A maintained distribution of WordPress on a contemporary PHP and database floor, with a single editing experience and no third-party AI provider surface.
 
-* [Getting Started](#getting-started)
-* [Credentials](#credentials)
+Posts, pages, users, taxonomies, media, comments, multisite, the block editor, REST, themes, plugins, the scheduler, feeds, embeds, search, and internationalization all continue to work. Sites that depended on a removed capability are not silently mapped to a replacement; the runtime names the missing capability instead.
 
-## Getting Started
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](license.txt)
+[![PHP: 8.5+](https://img.shields.io/badge/PHP-8.5%2B-777bb4.svg)](#requirements)
+[![Database: MySQL 8.4 / MariaDB 10.11](https://img.shields.io/badge/DB-MySQL%208.4%20%2F%20MariaDB%2010.11%2B-4479A1.svg)](#requirements)
+[![Editing: Block editor only](https://img.shields.io/badge/editing-block%20editor%20only-1e8cbe.svg)](#what-is-not-shipped)
+[![AI provider integrations: not included](https://img.shields.io/badge/AI%20provider%20integrations-not%20included-d83a3a.svg)](#what-is-not-shipped)
 
-### Local development
+---
 
-WordPress is a PHP, MySQL, and JavaScript based project, and uses Node for its JavaScript dependencies. A local development environment is available to quickly get up and running.
+## Overview
 
-You will need a basic understanding of how to use the command line on your computer. This will allow you to set up the local development environment, to start it and stop it when necessary, and to run the tests.
+This distribution is a re-cut of WordPress for a contemporary PHP and database stack. The platform runs the same content, user, taxonomy, media, comment, multisite, REST, and scheduling surface that upstream WordPress provides, but is implemented for the modern PHP and database floor.
 
-You will need Node and npm installed on your computer. Node is a JavaScript runtime used for developer tooling, and npm is the package manager included with Node. If you have a package manager installed for your operating system, setup can be as straightforward as:
+The block editor is the only editing experience. Themes must be block themes. Plugins are loaded through a typed contract.
 
-* macOS: `brew install node`
-* Windows: `choco install nodejs`
-* Ubuntu: `apt install nodejs npm`
+The runtime fails fast on unsupported input. There are no silent fallbacks, no version-conditional code paths, and no compatibility shims for removed behavior. A request against an old PHP or database version, a table on a legacy character set or storage engine, a classic-theme activation, or a plugin that calls a removed symbol all fail with a clear, intentional message.
 
-If you are not using a package manager, see the [Node.js download page](https://nodejs.org/en/download/) for installers and binaries.
+---
 
-**Note:** WordPress currently only officially supports Node.js `20.x` and npm `10.x`.
+## Requirements
 
-You will also need a container environment such as [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running on your computer. The container environment is the virtualization software that powers the local development environment and can be installed just like any other regular application.
+| Component | Required | Notes |
+| :--- | :--- | :--- |
+| PHP | 8.5 or newer | Requests on older versions are rejected at bootstrap with the detected version and the floor. |
+| MySQL | 8.4 LTS or newer | MySQL 8.0 reached end of life in April 2026 and is not supported. |
+| MariaDB | 10.11 LTS or newer | Older versions are not supported. |
+| Table character set | utf8mb4 | Tables on older charsets are not accepted. |
+| Table engine | InnoDB | Non-InnoDB tables are not accepted. |
+| Browser | Modern evergreen | Older browsers are not tested. |
+| Node | 20.x or newer | Required for the JavaScript build only. |
+| npm | 10.x or newer | Required for the JavaScript build only. |
 
-**Note:** WordPress currently only officially supports Docker but several container environments are available and should generally be compatible, such as [Colima](https://github.com/abiosoft/colima), [OrbStack](https://orbstack.dev/), [Podman Desktop](https://podman-desktop.io/), and [Rancher Desktop](https://rancherdesktop.io/).
+The supported version matrices are defined in `.version-support-php.json` and `.version-support-mysql.json` at the top of the repository.
 
-### Development Environment Commands
+---
 
-Ensure your container environment is running before using these commands.
+## What is shipped
 
-#### To start the development environment for the first time
+The platform provides the same content, user, taxonomy, media, comment, multisite, REST, and scheduling surface that upstream WordPress provides, implemented for the modern PHP and database floor:
 
-You can get started using the local development environment with these steps:
+* Posts, pages, and custom content types.
+* Categories, tags, and custom taxonomies.
+* Users and roles.
+* Media and attachments.
+* Comments and comment moderation.
+* Revisions and scheduled publishing.
+* Multisite.
+* The block editor and block themes.
+* REST.
+* Plugins loaded through a typed contract.
+* A durable, observable scheduler.
+* Feeds, lazy embeds, and search.
+* Internationalization, RTL, and accessibility.
 
-1. Go to https://github.com/WordPress/wordpress-develop and fork the repository to your own GitHub account. 
-1. Then clone the forked repository to your computer using `git clone https://github.com/<your-username>/wordpress-develop.git`.
-1. Navigate into the directory for the cloned repository using `cd wordpress-develop`.
-1. Add the origin repo as an `upstream` remote via `git remote add upstream https://github.com/WordPress/wordpress-develop.git`.
-1. Then you can keep your branches up to date via `git pull --ff upstream trunk`, for example.
+---
 
-Alternatively, if you have the [GitHub CLI](https://cli.github.com/) installed, you can simply run `gh repo fork WordPress/wordpress-develop --clone` ([docs](https://cli.github.com/manual/gh_repo_fork)). This command will:
-1. Fork the repository to your account (use the `--org` flag to clone into an organization).
-1. Clone the repository to your machine. 
-1. Add `WordPress/wordpress-develop` as `upstream` and set it to the default `remote` repository
+## What is not shipped
 
-After this, remember to run `cd wordpress-develop`.
+The following are removed from the runtime. There is no replacement API for any of them.
 
-Once you have forked and cloned the repository to your computer, run the following commands in a terminal:
+**AI provider integrations.** The AI client, abilities registry, connectors, MCP adapter, and the bundled hooks for AI-generated images, titles, excerpts, and alt text. The settings screen and API-key management for AI providers are gone.
 
-```
+**Classic editing and theming.** The classic editor, classic themes, the Customizer, the classic widgets system, and PHP-template resolution. A site with classic-theme content still opens and always renders and edits through the block editor. A classic-theme fixture fails theme activation with a clear message.
+
+**Legacy transport endpoints.** The legacy AJAX and XML-RPC handlers that existed only to serve the removed editing surface. Block-era admin screens keep their AJAX endpoints.
+
+**Legacy JavaScript.** The legacy migration, view, and upload JavaScript libraries. Frontend emoji and eager embed auto-injection.
+
+**Legacy filesystem paths.** FTP, FTPS, and SSH filesystem fallbacks; the in-admin file editor; the version-check polling channel.
+
+**Legacy database patterns.** Single-option storage for transients and the rewrite-rule cache; string-keyed metadata free-for-all; the legacy pagination patterns; the legacy local plus GMT dual-writes.
+
+---
+
+## Installation
+
+A Docker-based local environment is provided. After cloning:
+
+```sh
 npm install
 npm run build:dev
 npm run env:start
 npm run env:install
 ```
 
-Your WordPress site will be accessible at http://localhost:8889. You can see or change configurations in the `.env` file located at the root of the project directory.
+The site is then available at <http://localhost:8889>. Rebuild on changes with `npm run dev`.
 
-#### To watch for changes
+---
 
-If you're making changes to WordPress core files, you should start the file watcher in order to build or copy the files as necessary:
+## Migration from upstream WordPress
 
-```
-npm run dev
-```
+Migrating from an upstream WordPress installation is a one-shot CLI step that runs before the site comes up on the new runtime. The migration is idempotent and resumable.
 
-To stop the watcher, press `ctrl+c`.
+A preflight command inspects the existing site and reports:
 
-#### To run a [WP-CLI](https://make.wordpress.org/cli/handbook/) command
+* The detected PHP version versus the 8.5 floor.
+* The detected MySQL or MariaDB version versus the 8.4 or 10.11 floors.
+* The character set and engine of every table.
+* Classic-editor content present in the database.
+* Classic themes present in `wp-content/themes/`.
+* Any AI or connectors configuration present in the database.
 
-```
-npm run env:cli -- <command>
-```
+The preflight does not mutate data. The migration transforms the data in place, in a deterministic order, and writes a resumable log so a partial run can be completed without redoing completed steps.
 
-WP-CLI has [many useful commands](https://developer.wordpress.org/cli/commands/) you can use to work on your WordPress site. Where the documentation mentions running `wp`, run `npm run env:cli --` instead. For example:
+Sites that depend on a removed capability are not silently mapped to a replacement. The preflight lists the capabilities that will not exist on the new runtime and stops before mutating data, so the operator can decide what to do.
 
-```
-npm run env:cli -- help
-```
+---
 
-#### To run the tests
+## Security
 
-These commands run the PHP and end-to-end test suites, respectively:
+Security reports follow the upstream process documented in [SECURITY.md](SECURITY.md). The platform is built and tested on every change; the PHP floor, the database floor, and the lint configuration are part of CI, so changes that would reintroduce a known weakness fail before they are accepted.
 
-```
-npm run test:php
-npm run test:e2e
-```
+---
 
-You can pass extra parameters into the PHP tests by adding `--` and then the [command-line options](https://docs.phpunit.de/en/10.4/textui.html#command-line-options):
+## License
 
-```
-npm run test:php -- --filter <test name>
-npm run test:php -- --group <group name or ticket number>
-```
-
-To run the JavaScript (QUnit) tests:
-
-```
-npm run grunt qunit:compiled
-```
-
-`qunit:compiled` builds first, then runs the suite. The QUnit runner loads
-scripts from the built `build/` directory, so a plain `npm run grunt qunit`
-requires a completed `npm run build` first without a build, every test fails
-with a `jQuery is not defined` error.
-
-#### To lint the workflow files
-
-GitHub Actions workflows operate in a privileged software supply chain environment, therefore all workflow files must adhere to a high degree of quality and security standards.
-
-All YAML workflow files within the `.github/workflows` directory are statically scanned when modified using [Actionlint](https://github.com/rhysd/actionlint) and [Zizmor](https://github.com/zizmorcore/zizmor). It's recommended that you install both of these tools locally using a package manager to run prior to submitting changes to workflow files.
-
-- [Actionlint installations instructions](https://github.com/rhysd/actionlint/blob/main/docs/install.md)
-- [Zizmor installation instructions](https://docs.zizmor.sh/installation/)
-
-To run Actionlint:
-
-```
-actionlint
-```
-
-To run Zizmor for all workflow files (note the trailing period):
-
-```
-zizmor .
-```
-
-**Note:** A workflow run failure will not occur when issues are detected by Zizmor. Instead, the generated report is submitted to GitHub Code Scanning and surfaced through a status check. Some locally reported issues may be ignored based on the repository's configured Code Scanning settings.
-
-#### Generating a code coverage report
-PHP code coverage reports are [generated daily](https://github.com/WordPress/wordpress-develop/actions/workflows/test-coverage.yml) and [submitted to Codecov.io](https://app.codecov.io/gh/WordPress/wordpress-develop).
-
-After the local container environment has [been installed and started](#to-start-the-development-environment-for-the-first-time), the following command can be used to generate a code coverage report. 
-
-```
-npm run test:coverage
-```
-
-The command will generate three coverage reports in HTML, PHP, and text formats, saving them in the `coverage` folder.
-
-**Note:** xDebug is required to generate a code coverage report, which can slow down PHPUnit significantly. Passing selection-based options such as `--group` or `--filter` can decrease the overall time required but will result in an incomplete report.
-
-#### To restart the development environment
-
-You may want to restart the environment if you've made changes to the configuration in the `docker-compose.yml` or `.env` files. Restart the environment with:
-
-```
-npm run env:restart
-```
-
-#### To stop the development environment
-
-You can stop the environment when you're not using it to preserve your computer's power and resources:
-
-```
-npm run env:stop
-```
-
-#### To start the development environment again
-
-Starting the environment again is a single command:
-
-```
-npm run env:start
-```
-
-#### Resetting the development environment
-
-The development environment can be reset. This will destroy the database and attempt to remove the pulled container images.
-
-```
-npm run env:reset
-```
-
-### Apple Silicon machines and old MySQL/MariaDB versions
-
-Older MySQL and MariaDB container images do not support Apple Silicon processors (M1, M2, etc.). This is true for:
-
-- MySQL versions 5.7 and earlier
-- MariaDB 5.5
-
-When using these versions on an Apple Silicon machine, you must create a `docker-compose.override.yml` file with the following contents:
-
-```
-services:
-
-  mysql:
-    platform: linux/amd64
-```
-
-Additionally, the "Use Rosetta for x86/AMD64 emulation on Apple Silicon" setting in your container environment (if applicable) needs to be disabled for this workaround.
-
-## Credentials
-
-These are the default environment credentials:
-
-* Database Name: `wordpress_develop`
-* Username: `root`
-* Password: `password`
-
-To login to the site, navigate to http://localhost:8889/wp-admin.
-
-* Username: `admin`
-* Password: `password`
-
-**Note:** With Codespaces, open the portforwarded URL from the ports tab in the terminal, and append `/wp-admin` to login to the site.
-
-To generate a new password (recommended):
-
-1. Go to the Dashboard
-2. Click the Users menu on the left
-3. Click the Edit link below the admin user
-4. Scroll down and click 'Generate password'. Either use this password (recommended) or change it, then click 'Update User'. If you use the generated password be sure to save it somewhere (password manager, etc).
+GPL-2.0-or-later. See [license.txt](license.txt).
