@@ -1082,15 +1082,19 @@ function _maybe_update_themes() {
 }
 
 /**
- * Schedules core, theme, and plugin update checks.
+ * Schedules theme and plugin update checks.
+ *
+ * The WordPress-core version check is removed in 7.2.0
+ * (MODERNIZATION_PLAN.md Phase 3A Task 4): the runtime no longer
+ * polls api.wordpress.org for new core releases on a cron
+ * schedule. The wp_version_check() function and the 'update_core'
+ * transient are still defined and are still called by explicit
+ * admin actions; only the twicedaily cron is dropped.
  *
  * @since 3.1.0
+ * @since 7.2.0 Core version-check polling removed.
  */
 function wp_schedule_update_checks() {
-	if ( ! wp_next_scheduled( 'wp_version_check' ) && ! wp_installing() ) {
-		wp_schedule_event( time(), 'twicedaily', 'wp_version_check' );
-	}
-
 	if ( ! wp_next_scheduled( 'wp_update_plugins' ) && ! wp_installing() ) {
 		wp_schedule_event( time(), 'twicedaily', 'wp_update_plugins' );
 	}
