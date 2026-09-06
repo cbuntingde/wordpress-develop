@@ -466,69 +466,12 @@ function get_admin_users_for_domain( $domain = '', $path = '' ) {
  * @deprecated 4.6.0 Use get_sites()
  * @see get_sites()
  *
- * @param array $args {
- *     Array of default arguments. Optional.
- *
- *     @type int|int[] $network_id A network ID or array of network IDs. Set to null to retrieve sites
- *                                 from all networks. Defaults to current network ID.
- *     @type int       $public     Retrieve public or non-public sites. Default null, for any.
- *     @type int       $archived   Retrieve archived or non-archived sites. Default null, for any.
- *     @type int       $mature     Retrieve mature or non-mature sites. Default null, for any.
- *     @type int       $spam       Retrieve spam or non-spam sites. Default null, for any.
- *     @type int       $deleted    Retrieve deleted or non-deleted sites. Default null, for any.
- *     @type int       $limit      Number of sites to limit the query to. Default 100.
- *     @type int       $offset     Exclude the first x sites. Used in combination with the $limit parameter. Default 0.
- * }
- * @return array[] An empty array if the installation is considered "large" via wp_is_large_network(). Otherwise,
- *                 an associative array of WP_Site data as arrays.
+ * Removed in 7.2.0. Per MODERNIZATION_PLAN.md Phase 3A Task 2, the
+ * deprecated wrapper is deleted once no core caller uses it directly.
+ * Callers should use get_sites() instead; it returns WP_Site objects
+ * rather than arrays, but the multisite site-query tests cover the
+ * modern equivalent.
  */
-function wp_get_sites( $args = array() ) {
-	_deprecated_function( __FUNCTION__, '4.6.0', 'get_sites()' );
-
-	if ( wp_is_large_network() )
-		return array();
-
-	$defaults = array(
-		'network_id' => get_current_network_id(),
-		'public'     => null,
-		'archived'   => null,
-		'mature'     => null,
-		'spam'       => null,
-		'deleted'    => null,
-		'limit'      => 100,
-		'offset'     => 0,
-	);
-
-	$args = wp_parse_args( $args, $defaults );
-
-	// Backward compatibility.
-	if( is_array( $args['network_id'] ) ){
-		$args['network__in'] = $args['network_id'];
-		$args['network_id'] = null;
-	}
-
-	if( is_numeric( $args['limit'] ) ){
-		$args['number'] = $args['limit'];
-		$args['limit'] = null;
-	} elseif ( ! $args['limit'] ) {
-		$args['number'] = 0;
-		$args['limit'] = null;
-	}
-
-	// Make sure count is disabled.
-	$args['count'] = false;
-
-	$_sites  = get_sites( $args );
-
-	$results = array();
-
-	foreach ( $_sites as $_site ) {
-		$_site = get_site( $_site );
-		$results[] = $_site->to_array();
-	}
-
-	return $results;
-}
 
 /**
  * Check whether a usermeta key has to do with the current blog.
