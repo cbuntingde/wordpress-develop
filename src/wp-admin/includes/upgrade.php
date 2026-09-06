@@ -3665,12 +3665,17 @@ function translate_level_to_role( $level ) {
  * Checks the version of the installed MySQL binary.
  *
  * @since 2.1.0
+ * @since 7.2.0 Also verifies the core table storage (utf8mb4 + InnoDB).
  *
  * @global wpdb $wpdb WordPress database abstraction object.
  */
 function wp_check_mysql_version() {
 	global $wpdb;
 	$result = $wpdb->check_database_version();
+	if ( is_wp_error( $result ) ) {
+		wp_die( $result );
+	}
+	$result = $wpdb->check_table_storage();
 	if ( is_wp_error( $result ) ) {
 		wp_die( $result );
 	}

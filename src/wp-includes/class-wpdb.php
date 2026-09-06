@@ -770,6 +770,32 @@ class wpdb {
 		}
 
 		$this->db_connect();
+
+		/*
+		 * Phase 1 platform-floor enforcement. Runs after every successful
+		 * connection so the failure cannot be suppressed by a caller and
+		 * surfaces on every entry point that reaches the database (web
+		 * requests, WP-CLI commands, cron requests). Per
+		 * MODERNIZATION_PLAN.md Phase 1 tasks 2 and 4:
+		 *   - check_database_version() enforces the MySQL 8.4 / MariaDB 10.11
+		 *     floor based on detected vendor.
+		 *   - check_table_storage() enforces utf8mb4 + InnoDB on the core
+		 *     tables. Tolerates a fresh install (no core tables yet) so the
+		 *     installer can create them on the floor.
+		 *
+		 * `wp_die()` here is the only exit path; the runtime must not start
+		 * on an unsupported DB.
+		 */
+		$result = $this->check_database_version();
+		if ( is_wp_error( $result ) ) {
+			wp_load_translations_early();
+			wp_die( $result );
+		}
+		$result = $this->check_table_storage();
+		if ( is_wp_error( $result ) ) {
+			wp_load_translations_early();
+			wp_die( $result );
+		}
 	}
 
 	/**
@@ -4063,20 +4089,172 @@ class wpdb {
 	/**
 	 * Determines whether the database server is at least the required minimum version.
 	 *
+	 * Detects the server vendor (MySQL vs MariaDB) by inspecting the
+	 * `version_comment` returned by `mysqli_get_server_info()` and enforces
+	 * the matching floor. Per MODERNIZATION_PLAN.md Phase 1 task 2:
+	 *   - MySQL 8.4+ is required
+	 *   - MariaDB 10.11+ is required
+	 * The two are mutually exclusive — a MySQL 8.0–8.3 server is below floor
+	 * and is told plainly what the two accepted floors are.
+	 *
 	 * @since 2.5.0
 	 *
-	 * @global string $required_mysql_version The minimum required MySQL version string.
-	 * @return void|WP_Error Void if the server meets the minimum version, WP_Error if not.
+	 * @global string $required_mysql_version   The minimum required MySQL version string.
+	 * @global string $required_mariadb_version The minimum required MariaDB version string.
+	 * @return void|WP_Error Void if the server meets the floor for its vendor; WP_Error if not.
 	 */
 	public function check_database_version() {
-		global $required_mysql_version;
-		$wp_version = wp_get_wp_version();
+		global $required_mysql_version, $required_mariadb_version;
 
-		// Make sure the server has the required MySQL version.
-		if ( version_compare( $this->db_version(), $required_mysql_version, '<' ) ) {
-			/* translators: 1: WordPress version number, 2: Minimum required MySQL version number. */
-			return new WP_Error( 'database_version', sprintf( __( '<strong>Error:</strong> WordPress %1$s requires MySQL %2$s or higher' ), $wp_version, $required_mysql_version ) );
+		$server_info = $this->db_server_info();
+		$server_ver  = $this->db_version();
+
+		$is_mariadb = ( false !== stripos( $server_info, 'mariadb' ) );
+
+		if ( $is_mariadb ) {
+			if ( version_compare( $server_ver, $required_mariadb_version, '<' ) ) {
+				return new WP_Error(
+					'database_version',
+					sprintf(
+						/* translators: 1: Detected server version, 2: Required MariaDB version, 3: Required MySQL version. */
+						__( '<strong>Error:</strong> Detected MariaDB %1$s. WordPress requires MariaDB %2$s or newer, or MySQL %3$s or newer.' ),
+						$server_ver,
+						$required_mariadb_version,
+						$required_mysql_version
+					)
+				);
+			}
+			return;
 		}
+
+		// Not MariaDB — treat as MySQL. MySQL 8.0–8.3 do NOT pass per the MySQL
+		// floor decision in MODERNIZATION_PLAN.md 'Decisions that sharpen or
+		// override the Spec'.
+		if ( version_compare( $server_ver, $required_mysql_version, '<' ) ) {
+			return new WP_Error(
+				'database_version',
+				sprintf(
+					/* translators: 1: Detected server version, 2: Required MySQL version, 3: Required MariaDB version. */
+					__( '<strong>Error:</strong> Detected MySQL %1$s. WordPress requires MySQL %2$s or newer, or MariaDB %3$s or newer.' ),
+					$server_ver,
+					$required_mysql_version,
+					$required_mariadb_version
+				)
+			);
+		}
+	}
+
+	/**
+	 * Determines whether every core WordPress table is on the required
+	 * character set and storage engine.
+	 *
+	 * Enforced at connection time. Per MODERNIZATION_PLAN.md Phase 1 task 4:
+	 * core tables must be on utf8mb4 + InnoDB; the request fails loud with
+	 * the offending table name, charset, and engine — no silent coercion
+	 * via CONVERT TO CHARACTER SET. The migration tooling (Phase 7) is the
+	 * place where legacy tables get converted; this runtime check just
+	 * refuses to start on a database that is not already on the floor.
+	 *
+	 * Runs against INFORMATION_SCHEMA so the result reflects what the
+	 * database is actually storing, not what the client requested.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @global string   $table_prefix         The WordPress database table prefix.
+	 * @global string   $required_db_charset  Required character set (utf8mb4).
+	 * @global string   $required_db_engine   Required storage engine (InnoDB).
+	 * @return true|WP_Error True if every core table is on the floor; WP_Error otherwise.
+	 */
+	public function check_table_storage() {
+		global $table_prefix, $required_db_charset, $required_db_engine;
+
+		if ( ! ( $this->dbh instanceof mysqli ) ) {
+			return new WP_Error( 'db_not_connected', __( '<strong>Error:</strong> No database connection is available to verify table storage.' ) );
+		}
+
+		// Core tables whose storage must be on the floor. If any of them is
+		// missing the installation has not finished yet; the create-on-first-
+		// use path will handle it, so skip the check in that case.
+		$core_tables = array(
+			$table_prefix . 'posts',
+			$table_prefix . 'postmeta',
+			$table_prefix . 'options',
+			$table_prefix . 'users',
+			$table_prefix . 'usermeta',
+			$table_prefix . 'comments',
+			$table_prefix . 'commentmeta',
+			$table_prefix . 'terms',
+			$table_prefix . 'term_taxonomy',
+			$table_prefix . 'term_relationships',
+			$table_prefix . 'links',
+		);
+
+		$database = $this->dbname;
+		if ( '' === $database ) {
+			return new WP_Error( 'db_no_database', __( '<strong>Error:</strong> No database selected; cannot verify table storage.' ) );
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $core_tables ), '%s' ) );
+		$sql          = $this->prepare(
+			"SELECT TABLE_NAME, CCSA.CHARACTER_SET_NAME, ENGINE
+			 FROM information_schema.TABLES AS T
+			 JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY AS CCSA
+			   ON CCSA.TABLE_SCHEMA = T.TABLE_SCHEMA
+			  AND CCSA.TABLE_NAME   = T.TABLE_NAME
+			  AND CCSA.COLLATION_NAME = T.TABLE_COLLATION
+			 WHERE T.TABLE_SCHEMA = %s
+			   AND T.TABLE_NAME IN ($placeholders)",
+			array_merge( array( $database ), $core_tables )
+		);
+
+		$rows = $this->get_results( $sql );
+		if ( ! is_array( $rows ) ) {
+			return new WP_Error(
+				'table_storage_check_failed',
+				sprintf(
+					/* translators: %s: mysqli error string. */
+					__( '<strong>Error:</strong> Could not read INFORMATION_SCHEMA to verify table storage: %s' ),
+					$this->dbh->error ?? 'unknown'
+				)
+			);
+		}
+
+		$offending = array();
+		$found     = array();
+		foreach ( $rows as $row ) {
+			$found[ $row->TABLE_NAME ] = true;
+			if ( strcasecmp( (string) $row->CHARACTER_SET_NAME, $required_db_charset ) !== 0
+				|| strcasecmp( (string) $row->ENGINE, $required_db_engine ) !== 0
+			) {
+				$offending[] = sprintf(
+					'%1$s (charset=%2$s, engine=%3$s)',
+					$row->TABLE_NAME,
+					(string) $row->CHARACTER_SET_NAME,
+					(string) $row->ENGINE
+				);
+			}
+		}
+
+		// If none of the core tables exist, this is a fresh install — let the
+		// installer create them on the floor instead of failing here.
+		if ( 0 === count( $found ) ) {
+			return true;
+		}
+
+		if ( count( $offending ) > 0 ) {
+			return new WP_Error(
+				'table_storage_below_floor',
+				sprintf(
+					/* translators: 1: Required charset, 2: Required engine, 3: List of offending tables. */
+					__( '<strong>Error:</strong> Core tables must use charset=%1$s and engine=%2$s. The following tables do not: %3$s. Run the migration tooling to convert them before retrying.' ),
+					$required_db_charset,
+					$required_db_engine,
+					implode( ', ', $offending )
+				)
+			);
+		}
+
+		return true;
 	}
 
 	/**

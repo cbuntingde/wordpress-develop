@@ -535,6 +535,23 @@ class Tests_DB extends WP_UnitTestCase {
 		$this->assertEmpty( $wpdb->check_database_version() );
 	}
 
+	public function test_check_table_storage() {
+		global $wpdb, $table_prefix;
+
+		// Phase 1 floor: every core table on a freshly-installed test DB
+		// must be on utf8mb4 + InnoDB.
+		$result = $wpdb->check_table_storage();
+		$this->assertTrue( $result, 'Core tables must be on utf8mb4 + InnoDB after a clean test install.' );
+
+		// No connection available → returns a WP_Error rather than crashing.
+		$wpdb_saved = $wpdb;
+		$wpdb->dbh  = null;
+		$result     = $wpdb->check_table_storage();
+		$wpdb->dbh  = $wpdb_saved->dbh;
+		$this->assertWPError( $result );
+		$this->assertSame( 'db_not_connected', $result->get_error_code() );
+	}
+
 	public function test_bail() {
 		global $wpdb;
 
