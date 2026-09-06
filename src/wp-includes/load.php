@@ -141,9 +141,13 @@ function wp_populate_basic_auth_from_authorization_header() {
 /**
  * Checks the server requirements.
  *
- *   - PHP version
- *   - PHP extensions
- *   - MySQL or MariaDB version (unless a database drop-in is present)
+ *   - PHP version (already enforced at the top of wp-load.php; this function
+ *     double-checks because it also runs from setup-config.php when no
+ *     wp-config.php exists yet).
+ *   - PHP extensions (json, hash, mysqli)
+ *   - MySQL or MariaDB reachability (unless a database drop-in is present;
+ *     the actual server version floor is enforced by wpdb::check_database_version()
+ *     once a connection is established).
  *
  * Dies if requirements are not met.
  *
@@ -164,10 +168,9 @@ function wp_check_php_mysql_versions() {
 		header( sprintf( '%s 500 Internal Server Error', $protocol ), true, 500 );
 		header( 'Content-Type: text/html; charset=utf-8' );
 		printf(
-			'Your server is running PHP version %1$s but WordPress %2$s requires at least %3$s.',
-			$php_version,
-			$wp_version,
-			$required_php_version
+			'WordPress requires PHP %1$s or newer. Detected PHP %2$s.',
+			$required_php_version,
+			$php_version
 		);
 		exit( 1 );
 	}

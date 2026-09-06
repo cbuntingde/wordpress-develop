@@ -35,9 +35,14 @@ $tinymce_version = '49110-20250317';
 /**
  * Holds the minimum required PHP version.
  *
+ * Enforced at bootstrap by `wp_check_php_mysql_versions()` in
+ * `src/wp-includes/load.php` and at the very top of `src/wp-load.php`.
+ * Single source of truth for the floor lives in `.version-support-php.json`
+ * at the repository root. Per MODERNIZATION_PLAN.md Phase 1 task 1.
+ *
  * @global string $required_php_version
  */
-$required_php_version = '7.4';
+$required_php_version = '8.5';
 
 /**
  * Holds the names of required PHP extensions.
@@ -47,11 +52,47 @@ $required_php_version = '7.4';
 $required_php_extensions = array(
 	'json',
 	'hash',
+	'mysqli',
 );
 
 /**
  * Holds the minimum required MySQL version.
  *
+ * Enforced at connection time by `wpdb::check_database_version()`.
+ * Per MODERNIZATION_PLAN.md Phase 1 task 2 and the MySQL floor decision
+ * in 'Decisions that sharpen or override the Spec': MySQL 8.4 is the
+ * hard minimum. MySQL 8.0–8.3 do NOT pass.
+ *
  * @global string $required_mysql_version
  */
-$required_mysql_version = '5.5.5';
+$required_mysql_version = '8.4';
+
+/**
+ * Holds the minimum required MariaDB version.
+ *
+ * Enforced at connection time by `wpdb::check_database_version()`.
+ * Per MODERNIZATION_PLAN.md Phase 1 task 2.
+ *
+ * @global string $required_mariadb_version
+ */
+$required_mariadb_version = '10.11';
+
+/**
+ * Holds the minimum required database table character set.
+ *
+ * Enforced at connection time by `wpdb::check_table_storage()`.
+ * Per MODERNIZATION_PLAN.md Phase 1 task 4.
+ *
+ * @global string $required_db_charset
+ */
+$required_db_charset = 'utf8mb4';
+
+/**
+ * Holds the minimum required database table engine.
+ *
+ * Enforced at connection time by `wpdb::check_table_storage()`.
+ * Per MODERNIZATION_PLAN.md Phase 1 task 4.
+ *
+ * @global string $required_db_engine
+ */
+$required_db_engine = 'InnoDB';
