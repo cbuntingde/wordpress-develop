@@ -488,7 +488,6 @@ WordPress\AiClient\AiClient::setEventDispatcher( new WP_AI_Client_Event_Dispatch
 if ( is_multisite() ) {
 	require ABSPATH . WPINC . '/ms-functions.php';
 	require ABSPATH . WPINC . '/ms-default-filters.php';
-	require ABSPATH . WPINC . '/ms-deprecated.php';
 }
 
 // Define constants that rely on the API to obtain the default value.
