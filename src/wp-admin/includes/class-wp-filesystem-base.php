@@ -197,47 +197,7 @@ class WP_Filesystem_Base {
 			return $this->cache[ $folder ];
 		}
 
-		if ( stripos( $this->method, 'ftp' ) !== false ) {
-			$constant_overrides = array(
-				'FTP_BASE'        => ABSPATH,
-				'FTP_CONTENT_DIR' => WP_CONTENT_DIR,
-				'FTP_PLUGIN_DIR'  => WP_PLUGIN_DIR,
-				'FTP_LANG_DIR'    => WP_LANG_DIR,
-			);
-
-			// Direct matches ( folder = CONSTANT/ ).
-			foreach ( $constant_overrides as $constant => $dir ) {
-				if ( ! defined( $constant ) ) {
-					continue;
-				}
-
-				if ( $folder === $dir ) {
-					/** @var string $constant_value */
-					$constant_value = constant( $constant );
-					return trailingslashit( $constant_value );
-				}
-			}
-
-			// Prefix matches ( folder = CONSTANT/subdir ),
-			foreach ( $constant_overrides as $constant => $dir ) {
-				if ( ! defined( $constant ) ) {
-					continue;
-				}
-
-				if ( 0 === stripos( $folder, $dir ) ) { // $folder starts with $dir.
-					/** @var string $constant_value */
-					$constant_value   = constant( $constant );
-					$potential_folder = (string) preg_replace( '#^' . preg_quote( $dir, '#' ) . '/#i', trailingslashit( $constant_value ), $folder );
-					$potential_folder = trailingslashit( $potential_folder );
-
-					if ( $this->is_dir( $potential_folder ) ) {
-						$this->cache[ $folder ] = $potential_folder;
-
-						return $potential_folder;
-					}
-				}
-			}
-		} elseif ( 'direct' === $this->method ) {
+		if ( 'direct' === $this->method ) {
 			$folder = str_replace( '\\', '/', $folder ); // Windows path sanitization.
 
 			return trailingslashit( $folder );

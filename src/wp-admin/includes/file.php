@@ -2182,6 +2182,7 @@ function WP_Filesystem( $args = false, $context = false, $allow_relaxed_file_own
 	global $wp_filesystem;
 
 	require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
+	require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
 
 	$method = get_filesystem_method( $args, $context, $allow_relaxed_file_ownership );
 
@@ -2189,29 +2190,7 @@ function WP_Filesystem( $args = false, $context = false, $allow_relaxed_file_own
 		return false;
 	}
 
-	if ( ! class_exists( "WP_Filesystem_$method" ) ) {
-
-		/**
-		 * Filters the path for a specific filesystem method class file.
-		 *
-		 * @since 2.6.0
-		 *
-		 * @see get_filesystem_method()
-		 *
-		 * @param string $path   Path to the specific filesystem method class file.
-		 * @param string $method The filesystem method to use.
-		 */
-		$abstraction_file = apply_filters( 'filesystem_method_file', ABSPATH . 'wp-admin/includes/class-wp-filesystem-' . $method . '.php', $method );
-
-		if ( ! file_exists( $abstraction_file ) ) {
-			return null;
-		}
-
-		require_once $abstraction_file;
-	}
-	$method = "WP_Filesystem_$method";
-
-	$wp_filesystem = new $method( $args );
+	$wp_filesystem = new WP_Filesystem_Direct( $args );
 
 	/*
 	 * Define the timeouts for the connections. Only available after the constructor is called
@@ -2270,7 +2249,11 @@ function WP_Filesystem( $args = false, $context = false, $allow_relaxed_file_own
  * @return string The transport to use, see description for valid return values.
  */
 function get_filesystem_method( $args = array(), $context = '', $allow_relaxed_file_ownership = false ) {
-	// Please ensure that this is either 'direct', 'ssh2', 'ftpext', or 'ftpsockets'.
+	// Per MODERNIZATION_PLAN.md Phase 3A Task 4: only the 'direct'
+	// filesystem method is supported. The legacy 'ssh2', 'ftpext',
+	// and 'ftpsockets' fallbacks (which prompted the user for FTP/
+	// SSH credentials when the web server could not write to the
+	// filesystem directly) are removed.
 	$method = defined( 'FS_METHOD' ) ? FS_METHOD : false;
 
 	if ( ! $context ) {
@@ -2320,14 +2303,12 @@ function get_filesystem_method( $args = array(), $context = '', $allow_relaxed_f
 		}
 	}
 
-	if ( ! $method && isset( $args['connection_type'] ) && 'ssh' === $args['connection_type'] && extension_loaded( 'ssh2' ) ) {
-		$method = 'ssh2';
+	if ( ! $method ) {
+		$method = 'direct';
 	}
-	if ( ! $method && extension_loaded( 'ftp' ) ) {
-		$method = 'ftpext';
-	}
-	if ( ! $method && ( extension_loaded( 'sockets' ) || function_exists( 'fsockopen' ) ) ) {
-		$method = 'ftpsockets'; // Sockets: Socket extension; PHP Mode: FSockopen / fwrite / fread.
+
+	if ( 'direct' !== $method ) {
+		return false;
 	}
 
 	/**
@@ -2374,7 +2355,7 @@ function get_filesystem_method( $args = array(), $context = '', $allow_relaxed_f
  *                    array of credentials if they are required and have been provided.
  */
 function request_filesystem_credentials( $form_post, $type = '', $error = false, $context = '', $extra_fields = null, $allow_relaxed_file_ownership = false ) {
-	global $pagenow;
+	unset( $form_post, $type, $error, $context, $extra_fields, $allow_relaxed_file_ownership );
 
 	/**
 	 * Filters the filesystem credentials.
@@ -2411,298 +2392,23 @@ function request_filesystem_credentials( $form_post, $type = '', $error = false,
 	if ( 'direct' === $type ) {
 		return true;
 	}
-
-	if ( is_null( $extra_fields ) ) {
-		$extra_fields = array( 'version', 'locale' );
-	}
-
-	$credentials = get_option(
-		'ftp_credentials',
-		array(
-			'hostname' => '',
-			'username' => '',
-		)
-	);
-
-	$submitted_form = wp_unslash( $_POST );
-
-	// Verify nonce, or unset submitted form field values on failure.
-	if ( ! isset( $_POST['_fs_nonce'] ) || ! wp_verify_nonce( $_POST['_fs_nonce'], 'filesystem-credentials' ) ) {
-		unset(
-			$submitted_form['hostname'],
-			$submitted_form['username'],
-			$submitted_form['password'],
-			$submitted_form['public_key'],
-			$submitted_form['private_key'],
-			$submitted_form['connection_type']
-		);
-	}
-
-	$ftp_constants = array(
-		'hostname'    => 'FTP_HOST',
-		'username'    => 'FTP_USER',
-		'password'    => 'FTP_PASS',
-		'public_key'  => 'FTP_PUBKEY',
-		'private_key' => 'FTP_PRIKEY',
-	);
-
-	/*
-	 * If defined, set it to that. Else, if POST'd, set it to that. If not, set it to an empty string.
-	 * Otherwise, keep it as it previously was (saved details in option).
-	 */
-	foreach ( $ftp_constants as $key => $constant ) {
-		if ( defined( $constant ) ) {
-			$credentials[ $key ] = constant( $constant );
-		} elseif ( ! empty( $submitted_form[ $key ] ) ) {
-			$credentials[ $key ] = $submitted_form[ $key ];
-		} elseif ( ! isset( $credentials[ $key ] ) ) {
-			$credentials[ $key ] = '';
-		}
-	}
-
-	// Sanitize the hostname, some people might pass in odd data.
-	$credentials['hostname'] = preg_replace( '|\w+://|', '', $credentials['hostname'] ); // Strip any schemes off.
-
-	if ( strpos( $credentials['hostname'], ':' ) ) {
-		list( $credentials['hostname'], $credentials['port'] ) = explode( ':', $credentials['hostname'], 2 );
-		if ( ! is_numeric( $credentials['port'] ) ) {
-			unset( $credentials['port'] );
-		}
-	} else {
-		unset( $credentials['port'] );
-	}
-
-	if ( ( defined( 'FTP_SSH' ) && FTP_SSH ) || ( defined( 'FS_METHOD' ) && 'ssh2' === FS_METHOD ) ) {
-		$credentials['connection_type'] = 'ssh';
-	} elseif ( ( defined( 'FTP_SSL' ) && FTP_SSL ) && 'ftpext' === $type ) { // Only the FTP Extension understands SSL.
-		$credentials['connection_type'] = 'ftps';
-	} elseif ( ! empty( $submitted_form['connection_type'] ) ) {
-		$credentials['connection_type'] = $submitted_form['connection_type'];
-	} elseif ( ! isset( $credentials['connection_type'] ) ) { // All else fails (and it's not defaulted to something else saved), default to FTP.
-		$credentials['connection_type'] = 'ftp';
-	}
-
-	if ( ! $error
-		&& ( ! empty( $credentials['hostname'] ) && ! empty( $credentials['username'] ) && ! empty( $credentials['password'] )
-			|| 'ssh' === $credentials['connection_type'] && ! empty( $credentials['public_key'] ) && ! empty( $credentials['private_key'] )
-		)
-	) {
-		$stored_credentials = $credentials;
-
-		if ( ! empty( $stored_credentials['port'] ) ) { // Save port as part of hostname to simplify above code.
-			$stored_credentials['hostname'] .= ':' . $stored_credentials['port'];
-		}
-
-		unset(
-			$stored_credentials['password'],
-			$stored_credentials['port'],
-			$stored_credentials['private_key'],
-			$stored_credentials['public_key']
-		);
-
-		if ( ! wp_installing() ) {
-			update_option( 'ftp_credentials', $stored_credentials, false );
-		}
-
-		return $credentials;
-	}
-
-	$hostname        = $credentials['hostname'] ?? '';
-	$username        = $credentials['username'] ?? '';
-	$public_key      = $credentials['public_key'] ?? '';
-	$private_key     = $credentials['private_key'] ?? '';
-	$port            = $credentials['port'] ?? '';
-	$connection_type = $credentials['connection_type'] ?? '';
-
-	if ( $error ) {
-		$error_string = __( '<strong>Error:</strong> Could not connect to the server. Please verify the settings are correct.' );
-		if ( is_wp_error( $error ) ) {
-			$error_string = esc_html( $error->get_error_message() );
-		}
-		wp_admin_notice(
-			$error_string,
-			array(
-				'id'                 => 'message',
-				'additional_classes' => array( 'error' ),
-			)
-		);
-	}
-
-	$types = array();
-	if ( extension_loaded( 'ftp' ) || extension_loaded( 'sockets' ) || function_exists( 'fsockopen' ) ) {
-		$types['ftp'] = __( 'FTP' );
-	}
-	if ( extension_loaded( 'ftp' ) ) { // Only this supports FTPS.
-		$types['ftps'] = __( 'FTPS (SSL)' );
-	}
-	if ( extension_loaded( 'ssh2' ) ) {
-		$types['ssh'] = __( 'SSH2' );
-	}
-
-	/**
-	 * Filters the connection types to output to the filesystem credentials form.
-	 *
-	 * @since 2.9.0
-	 * @since 4.6.0 The `$context` parameter default changed from `false` to an empty string.
-	 *
-	 * @param string[]      $types       Types of connections.
-	 * @param array         $credentials Credentials to connect with.
-	 * @param string        $type        Chosen filesystem method.
-	 * @param bool|WP_Error $error       Whether the current request has failed to connect,
-	 *                                   or an error object.
-	 * @param string        $context     Full path to the directory that is tested for being writable.
-	 */
-	$types = apply_filters( 'fs_ftp_connection_types', $types, $credentials, $type, $error, $context );
-	?>
-<form action="<?php echo esc_url( $form_post ); ?>" method="post">
-<div id="request-filesystem-credentials-form" class="request-filesystem-credentials-form">
-	<?php
-	// Print a H1 heading in the FTP credentials modal dialog, default is a H2.
-	$heading_tag = 'h2';
-	if ( 'plugins.php' === $pagenow || 'plugin-install.php' === $pagenow ) {
-		$heading_tag = 'h1';
-	}
-	echo "<$heading_tag id='request-filesystem-credentials-title'>" . __( 'Connection Information' ) . "</$heading_tag>";
-	?>
-<p id="request-filesystem-credentials-desc">
-	<?php
-	$label_user = __( 'Username' );
-	$label_pass = __( 'Password' );
-	_e( 'To perform the requested action, WordPress needs to access your web server.' );
-	echo ' ';
-	if ( ( isset( $types['ftp'] ) || isset( $types['ftps'] ) ) ) {
-		if ( isset( $types['ssh'] ) ) {
-			_e( 'Please enter your FTP or SSH credentials to proceed.' );
-			$label_user = __( 'FTP/SSH Username' );
-			$label_pass = __( 'FTP/SSH Password' );
-		} else {
-			_e( 'Please enter your FTP credentials to proceed.' );
-			$label_user = __( 'FTP Username' );
-			$label_pass = __( 'FTP Password' );
-		}
-		echo ' ';
-	}
-	_e( 'If you do not remember your credentials, you should contact your web host.' );
-
-	$hostname_value = esc_attr( $hostname );
-	if ( ! empty( $port ) ) {
-		$hostname_value .= ":$port";
-	}
-
-	$password_value = '';
-	if ( defined( 'FTP_PASS' ) ) {
-		$password_value = '*****';
-	}
-	?>
-</p>
-<label for="hostname">
-	<span class="field-title"><?php _e( 'Hostname' ); ?></span>
-	<input name="hostname" type="text" id="hostname" aria-describedby="request-filesystem-credentials-desc" class="code" placeholder="<?php esc_attr_e( 'example: www.wordpress.org' ); ?>" value="<?php echo $hostname_value; ?>"<?php disabled( defined( 'FTP_HOST' ) ); ?> />
-</label>
-<div class="ftp-username">
-	<label for="username">
-		<span class="field-title"><?php echo $label_user; ?></span>
-		<input name="username" type="text" id="username" value="<?php echo esc_attr( $username ); ?>"<?php disabled( defined( 'FTP_USER' ) ); ?> />
-	</label>
-</div>
-<div class="ftp-password">
-	<label for="password">
-		<span class="field-title"><?php echo $label_pass; ?></span>
-		<input name="password" type="password" id="password" value="<?php echo $password_value; ?>"<?php disabled( defined( 'FTP_PASS' ) ); ?> spellcheck="false" />
-		<?php
-		if ( ! defined( 'FTP_PASS' ) ) {
-			_e( 'This password will not be stored on the server.' );
-		}
-		?>
-	</label>
-</div>
-<fieldset>
-<legend><?php _e( 'Connection Type' ); ?></legend>
-	<?php
-	$disabled = disabled( ( defined( 'FTP_SSL' ) && FTP_SSL ) || ( defined( 'FTP_SSH' ) && FTP_SSH ), true, false );
-	foreach ( $types as $name => $text ) :
-		?>
-	<label for="<?php echo esc_attr( $name ); ?>">
-		<input type="radio" name="connection_type" id="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $name ); ?>" <?php checked( $name, $connection_type ); ?> <?php echo $disabled; ?> />
-		<?php echo $text; ?>
-	</label>
-		<?php
-	endforeach;
-	?>
-</fieldset>
-	<?php
-	if ( isset( $types['ssh'] ) ) {
-		$hidden_class = '';
-		if ( 'ssh' !== $connection_type ) {
-			$hidden_class = ' class="hidden"';
-		}
-		?>
-<fieldset id="ssh-keys"<?php echo $hidden_class; ?>>
-<legend><?php _e( 'Authentication Keys' ); ?></legend>
-<label for="public_key">
-	<span class="field-title"><?php _e( 'Public Key:' ); ?></span>
-	<input name="public_key" type="text" id="public_key" aria-describedby="auth-keys-desc" value="<?php echo esc_attr( $public_key ); ?>"<?php disabled( defined( 'FTP_PUBKEY' ) ); ?> />
-</label>
-<label for="private_key">
-	<span class="field-title"><?php _e( 'Private Key:' ); ?></span>
-	<input name="private_key" type="text" id="private_key" value="<?php echo esc_attr( $private_key ); ?>"<?php disabled( defined( 'FTP_PRIKEY' ) ); ?> />
-</label>
-<p id="auth-keys-desc"><?php _e( 'Enter the location on the server where the public and private keys are located. If a passphrase is needed, enter that in the password field above.' ); ?></p>
-</fieldset>
-		<?php
-	}
-
-	foreach ( (array) $extra_fields as $field ) {
-		if ( isset( $submitted_form[ $field ] ) ) {
-			echo '<input type="hidden" name="' . esc_attr( $field ) . '" value="' . esc_attr( $submitted_form[ $field ] ) . '" />';
-		}
-	}
-
-	/*
-	 * Make sure the `submit_button()` function is available during the REST API call
-	 * from WP_Site_Health_Auto_Updates::test_check_wp_filesystem_method().
-	 */
-	if ( ! function_exists( 'submit_button' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/template.php';
-	}
-	?>
-	<p class="request-filesystem-credentials-action-buttons">
-		<?php wp_nonce_field( 'filesystem-credentials', '_fs_nonce', false, true ); ?>
-		<button class="button cancel-button" data-js-action="close" type="button"><?php _e( 'Cancel' ); ?></button>
-		<?php submit_button( __( 'Proceed' ), 'primary', 'upgrade', false ); ?>
-	</p>
-</div>
-</form>
-	<?php
-	return false;
 }
 
 /**
  * Prints the filesystem credentials modal when needed.
  *
+ * Per MODERNIZATION_PLAN.md Phase 3A Task 4: the FTP/SSH/FTPS
+ * transports are removed, so the modal no longer needs to render.
+ * Kept as a no-op so callers don't need to be updated.
+ *
  * @since 4.2.0
+ * @since 7.2.0 No-op.
  */
 function wp_print_request_filesystem_credentials_modal() {
-	$filesystem_method = get_filesystem_method();
-
-	ob_start();
-	$filesystem_credentials_are_stored = request_filesystem_credentials( self_admin_url() );
-	ob_end_clean();
-
-	$request_filesystem_credentials = ( 'direct' !== $filesystem_method && ! $filesystem_credentials_are_stored );
-	if ( ! $request_filesystem_credentials ) {
-		return;
-	}
-	?>
-	<div id="request-filesystem-credentials-dialog" class="notification-dialog-wrap request-filesystem-credentials-dialog">
-		<div class="notification-dialog-background"></div>
-		<div class="notification-dialog" role="dialog" aria-labelledby="request-filesystem-credentials-title" tabindex="0">
-			<div class="request-filesystem-credentials-dialog-content">
-				<?php request_filesystem_credentials( site_url() ); ?>
-			</div>
-		</div>
-	</div>
-	<?php
+	// No-op: the direct filesystem transport does not need a credentials
+	// prompt. Kept as a callable so existing callers (themes.php,
+	// theme-install.php, plugins.php, plugin-install.php, import.php,
+	// network/themes.php, plugin-install.php) do not need to be updated.
 }
 
 /**
