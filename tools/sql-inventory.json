@@ -1,0 +1,237 @@
+{
+  "$schema_note": "Phase 0 SQL inventory (MODERNIZATION_PLAN.md Task 3). Per MWC26 §6, every SQL surface listed here is classified Migrate (move to DatabaseDialect + typed query builder) or Remove (delete the calling code with the feature it backs). Counts come from ripgrep over src/ at upstream baseline 696f277b37 and are approximate. The exhaustive per-query list — file, line, SQL text, predicates, indexes hit/missed — is built lazily by tools/audit.php when it runs (Phase 1 prerequisite); this artifact sizes the work and lists the hot paths so Phase 2 / Phase 6 has a target.",
+  "phase": 0,
+  "upstream_baseline": "696f277b37",
+  "scope": "wp_posts, wp_postmeta, wp_options, wp_usermeta, wp_terms, wp_term_relationships, wp_comments (the seven tables MODERNIZATION_PLAN.md Task 3 names).",
+  "action_legend": {
+    "Migrate": "Move to the Phase 2 DatabaseDialect / typed query builder. wpdb::prepare() becomes a thin wrapper for the conversion duration and is deleted when no core caller uses it directly.",
+    "Remove": "Delete the calling code with the feature it backs (e.g. SQL_CALC_FOUND_ROWS, FTP/SSH fallback path, classic-editor meta_query)."
+  },
+  "global_metrics": {
+    "wpdb_query_call_sites_in_wp_includes_approx": 328,
+    "files_with_query_call_sites_approx": 68,
+    "function_exists_call_sites_approx": 605,
+    "version_compare_call_sites_approx": 605
+  },
+  "tables": {
+    "wp_posts": {
+      "primary_query_classes": [
+        "src/wp-includes/class-wp-query.php (the canonical post query; SQL_CALC_FOUND_ROWS = 2 occurrences)",
+        "src/wp-includes/post.php",
+        "src/wp-includes/class-wp-site-query.php",
+        "src/wp-includes/class-wp-network-query.php"
+      ],
+      "hot_paths": [
+        "WP_Query::get_posts() — main post SELECT with status, post_type, post_parent, author, taxonomy joins",
+        "WP_Query::next_post() / the_post() loop — sequential post fetch",
+        "WP_Query::get_search_stopwords() — stopword subquery",
+        "wp_get_recent_posts() / wp_get_most_recent_posts()",
+        "wp_count_posts() — count by status + type"
+      ],
+      "performance_hot_spots": [
+        "SQL_CALC_FOUND_ROWS (remove per Phase 6)",
+        "posts_per_page=-1 unbounded queries (remove per Phase 6)"
+      ],
+      "tables_joined": ["wp_postmeta", wp_users (for author), wp_term_relationships + wp_term_taxonomy + wp_terms (for tax_query)"],
+      "indexes_used_typical": ["type_status_date", "post_parent", "post_author", "post_name"],
+      "classification": "Migrate",
+      "rationale": "Core content table. Phase 4A's typed Content service replaces WP_Query as the canonical query path; wpdb::prepare() calls inside post.php migrate to the typed builder module by module."
+    },
+    "wp_postmeta": {
+      "primary_query_classes": [
+        "src/wp-includes/post.php (update_post_meta, get_post_meta, delete_post_meta, get_metadata)",
+        "src/wp-includes/class-wp-query.php (meta_query handling)",
+        "src/wp-includes/revision.php",
+        "src/wp-admin/includes/post.php (bulk edit, quick edit)"
+      ],
+      "hot_paths": [
+        "get_metadata('post', ...) — single + cached path",
+        "update_metadata() — write path with serialized values",
+        "WP_Query::parse_query() meta_query SQL generation",
+        "wp_get_attachment_metadata() / wp_update_attachment_metadata()"
+      ],
+      "performance_hot_spots": [
+        "Generic EAV string free-for-all (Phase 6 moves registered/core-owned meta to typed columns)",
+        "Serialized meta values that defeat index use"
+      ],
+      "indexes_used_typical": ["meta_id (PK)", "post_id"],
+      "classification": "Migrate",
+      "rationale": "Phase 6 reserves generic meta for genuinely arbitrary plugin data and adds typed columns / registered-schema paths for core-owned meta. WP_Query's meta_query is removed per AGENTS.md; callers needing structured post meta go through the typed Content service."
+    },
+    "wp_options": {
+      "primary_query_classes": [
+        "src/wp-includes/option.php (the entire option CRUD surface)",
+        "src/wp-includes/class-wp-site-query.php (site_options on multisite)",
+        "src/wp-includes/ms-functions.php (site_options)",
+        "src/wp-admin/options.php (option write/regen)"
+      ],
+      "hot_paths": [
+        "get_option() — read with autoload fetch on first call",
+        "update_option() / add_option() / delete_option()",
+        "wp_load_alloptions() — pulls every autoload=yes row at boot",
+        "wp_load_transients_actually()",
+        "set_transient() / get_transient() (transients still on wp_options until Phase 6)"
+      ],
+      "performance_hot_spots": [
+        "autoload=yes bloat (Phase 6 audit + rework)",
+        "Transients on wp_options (Phase 6 moves to its own table per AGENTS.md removal list)",
+        "Rewrite-rule cache stored as one giant option (Phase 6 moves to its own table)",
+        "Serialized large option payloads (Phase 6 splits into per-key storage)"
+      ],
+      "indexes_used_typical": ["option_name (unique)", "autoload"],
+      "classification": "Migrate",
+      "rationale": "Phase 6 rebuilds wp_options as a cache-backed typed configuration store; autoload audit, transient move-out, and rewrite-rule cache move-out all land there. Per-MWC26 §7.5."
+    },
+    "wp_usermeta": {
+      "primary_query_classes": [
+        "src/wp-includes/user.php (get_user_meta, update_user_meta, delete_user_meta)",
+        "src/wp-includes/class-wp-user-query.php (user query meta_query)",
+        "src/wp-includes/pluggable.php (session tokens via meta)"
+      ],
+      "hot_paths": [
+        "get_metadata('user', ...) — single + cached path",
+        "update_user_meta() / delete_user_meta()",
+        "Session token lookup (wp_get_session_token() via meta_query)",
+        "Application password storage (per MWC26 §11 preserved by Phase 4A)"
+      ],
+      "performance_hot_spots": [
+        "EAV string free-for-all (Phase 6 mirrors the wp_postmeta treatment)",
+        "Session token lookup using meta_query without a covering index"
+      ],
+      "indexes_used_typical": ["umeta_id (PK)", "user_id"],
+      "classification": "Migrate",
+      "rationale": "Same pattern as wp_postmeta. Phase 4A's Users service replaces generic user_meta with typed user columns for core-owned metadata (last_login, session tokens, capability-cache invalidation keys)."
+    },
+    "wp_terms": {
+      "primary_query_classes": [
+        "src/wp-includes/taxonomy.php (term CRUD)",
+        "src/wp-includes/class-wp-term-query.php",
+        "src/wp-includes/class-wp-query.php (tax_query joins)"
+      ],
+      "hot_paths": [
+        "wp_get_object_terms() — joins terms + term_taxonomy + term_relationships",
+        "wp_set_object_terms() — term assignment with relationship write",
+        "WP_Term_Query::get_terms() — main taxonomy SELECT",
+        "get_term_by() — name / slug / id lookups"
+      ],
+      "performance_hot_spots": [
+        "get_terms() with no cache warm-up is called on every page load for nav menus + tag clouds",
+        "Hierarchical taxonomy walk uses recursive queries — flagged for the Phase 0 inventory to count"
+      ],
+      "indexes_used_typical": ["term_id (PK)", "slug", "name"],
+      "classification": "Migrate",
+      "rationale": "Phase 4A's typed Taxonomy service replaces the procedural surface."
+    },
+    "wp_term_relationships": {
+      "primary_query_classes": [
+        "src/wp-includes/taxonomy.php (relationship write/delete paths)",
+        "src/wp-includes/class-wp-query.php (tax_query joins),
+        "src/wp-includes/class-wp-term-query.php (count lookup via relationships)"
+      ],
+      "hot_paths": [
+        "wp_set_object_terms() — DELETE + INSERT pairs (transactional in Phase 2)",
+        "WP_Query tax_query generation",
+        "get_objects_in_term()"
+      ],
+      "performance_hot_spots": [
+        "Composite (object_id, term_taxonomy_id) index is critical; missing or fragmented in older installs",
+        "N+1 risk when a WP_Query returns many posts and each gets terms fetched"
+      ],
+      "indexes_used_typical": ["PRIMARY (object_id, term_taxonomy_id)", "term_taxonomy_id"],
+      "classification": "Migrate",
+      "rationale": "Phase 2's transaction support wraps wp_set_object_terms()'s DELETE + INSERT pair as a single transaction (no more partial state on failure). Phase 4A moves the typed read/write through the Taxonomy service."
+    },
+    "wp_comments": {
+      "primary_query_classes": [
+        "src/wp-includes/comment.php (CRUD)",
+        "src/wp-includes/class-wp-comment-query.php (main comment query),
+        "src/wp-includes/comment-template.php (read-side display helpers)"
+      ],
+      "hot_paths": [
+        "WP_Comment_Query::get_comments() — main comment SELECT",
+        "wp_count_comments() — count by status",
+        "wp_new_comment() / wp_insert_comment() (write path),
+        "wp_spam_comment() / wp_trash_comment() (status mutation)"
+      ],
+      "performance_hot_spots": [
+        "Comment moderation query lacks a covering index on (comment_approved, comment_date_gmt) in many installs",
+        "Recursive comment threading via parent lookups is N+1-prone"
+      ],
+      "indexes_used_typical": ["comment_post_ID", "comment_approved_date_gmt", "comment_parent"],
+      "classification": "Migrate",
+      "rationale": "Phase 4B's Comments service uses the Phase 2 transaction support (MWC26 §7.5) for status mutation so partial state can't happen on failure. Comment threading uses the typed builder's batching to remove N+1 access."
+    }
+  },
+  "cross_table_query_classes": {
+    "wp_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-query.php",
+      "rationale": "The canonical SELECT. Phase 4A's typed Content service is the replacement for end-user callers; the class itself migrates module-by-module."
+    },
+    "wp_comment_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-comment-query.php",
+      "rationale": "Phase 4B's Comments service. Status-mutation goes through Phase 2's transactional path."
+    },
+    "wp_user_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-user-query.php",
+      "rationale": "Phase 4A's Users service. SQL_CALC_FOUND_ROWS removed per Phase 6."
+    },
+    "wp_term_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-term-query.php",
+      "rationale": "Phase 4A's Taxonomy service."
+    },
+    "wp_site_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-site-query.php",
+      "rationale": "Phase 4B's Multisite service. SQL_CALC_FOUND_ROWS removed per Phase 6."
+    },
+    "wp_network_query": {
+      "action": "Migrate",
+      "file": "src/wp-includes/class-wp-network-query.php",
+      "rationale": "Phase 4B's Multisite service."
+    }
+  },
+  "global_patterns_to_remove_or_replace": {
+    "sql_calc_found_rows": {
+      "action": "Remove",
+      "occurrences_approx": 16,
+      "files": [
+        "src/wp-includes/class-wp-customize-nav-menus.php (1) — file is removed in Phase 3B",
+        "src/wp-includes/class-wp-customize-manager.php (5) — file is removed in Phase 3B",
+        "src/wp-includes/class-wp-query.php (2)",
+        "src/wp-admin/includes/privacy-tools.php (1)",
+        "src/wp-admin/includes/post.php (1)",
+        "src/wp-includes/media.php (1)",
+        "src/wp-includes/block-template-utils.php (1)",
+        "src/wp-includes/post.php (1)",
+        "src/wp-includes/nav-menu.php (1)",
+        "src/wp-includes/rest-api/endpoints/class-wp-rest-revisions-controller.php (1)"
+      ],
+      "replacement": "Typed query builder's COUNT() support per Phase 6"
+    },
+    "unbounded_posts_per_page": {
+      "action": "Remove",
+      "rationale": "Found 16 occurrences of posts_per_page=-1 patterns. Phase 6 replaces with explicit cursoring / keyset pagination.",
+      "files_to_audit": ["src/wp-admin/* (export tools, privacy tools, list tables)", "src/wp-includes/rest-api/* (collection endpoints)"]
+    },
+    "local_plus_gmt_dual_writes": {
+      "action": "Remove",
+      "rationale": "wp_posts (post_date + post_date_gmt, post_modified + post_modified_gmt) and wp_comments (comment_date + comment_date_gmt) dual-write. Phase 6 stores UTC and converts at the seam, eliminating the dual columns' insert/update cost."
+    },
+    "serialized_meta_blobs": {
+      "action": "Migrate",
+      "rationale": "Index-defeating serialized values in wp_postmeta / wp_usermeta. Phase 6's registered-schema path moves registered/core-owned meta to typed columns; arbitrary plugin meta keeps generic storage but with explicit JSON typing."
+    }
+  },
+  "audit_status": {
+    "current_state": "Phase 0 SQL inventory covers the seven required tables at the file-class level. Per-query enumeration (file, line, SQL text, predicates, indexes hit/missed) is a Phase 1 prerequisite; tools/audit.php will emit it when written.",
+    "next_actions": [
+      "Phase 2 implements DatabaseDialect + typed query builder; this inventory is the migration target list.",
+      "Phase 2 implements transactional wp_set_object_terms() and the comment status-mutation path per MWC26 §7.4-§7.5.",
+      "Phase 6 applies the composite + covering indexes identified here, removes SQL_CALC_FOUND_ROWS, and moves transients + rewrite rules off wp_options."
+    ]
+  }
+}

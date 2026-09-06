@@ -1,0 +1,315 @@
+{
+  "$schema_note": "Phase 0 inventory (MODERNIZATION_PLAN.md). Classification per MWC26 §6: Migrate = modern equivalent exists (rewrite to typed seam); Isolate = one-time conversion lives in compat/ or migration tooling, not the runtime path; Remove = unsafe/obsolete/redundant/unmaintainable, delete outright. AI/Connectors items are explicitly marked Remove per the maintainer's decision in MODERNIZATION_PLAN.md 'Decisions that sharpen or override the Spec'. Counts come from `rg` over src/ at upstream baseline 696f277b37 and are approximate; treat them as 'enough to size the work,' not exact figures. Files and symbols listed are the ones with non-trivial call volume; an exhaustive line-by-line list belongs in tools/php-inventory.txt if needed for a future audit pass.",
+  "phase": 0,
+  "upstream_baseline": "696f277b37",
+  "classification_legend": {
+    "Migrate": "Modern supported equivalent exists. Update all core callers; add migration guidance; remove old implementation. (MWC26 §6)",
+    "Isolate": "Existing data/third-party behavior needs one-time conversion. Adapter lives in compat/ or migration tooling; not called on normal requests. (MWC26 §6)",
+    "Remove": "API is unsafe, obsolete, redundant, or unmaintainable. Delete implementation, tests, docs, related branches. (MWC26 §6)"
+  },
+  "php_symbols": {
+    "deprecated_helpers": {
+      "action": "Remove",
+      "rationale": "Helpers exist only to flag deprecated callers. With no deprecated callers left (the deprecated functions themselves are removed in this fork), the helpers have no users. Per AGENTS.md rule 12, no compat shims in the runtime.",
+      "files": [
+        "src/wp-includes/functions.php (_deprecated_function, _deprecated_file, _deprecated_argument)",
+        "src/wp-includes/deprecated.php (the entire compat table of removed functions)"
+      ]
+    },
+    "deprecated_functions_removed_at_baseline": {
+      "action": "Remove",
+      "rationale": "All entries in src/wp-includes/deprecated.php are pre-Phase-0 legacy. Each is removed as part of Phase 3A's wrapper removal, module by module, alongside its callers.",
+      "table": "src/wp-includes/deprecated.php",
+      "size_lines_approx": 4500
+    },
+    "version_compare_guards": {
+      "action": "Remove",
+      "rationale": "Phase 1 enforces PHP 8.5 / MySQL 8.4 / MariaDB 10.11 at bootstrap. No runtime path needs to test for an older version. Per AGENTS.md rule 12 and MODERNIZATION_PLAN.md Phase 3A.",
+      "occurrences_approx": 605,
+      "files_approx": 182,
+      "hot_files": [
+        "src/wp-includes/class-wpdb.php (4)",
+        "src/wp-includes/functions.php (4)",
+        "src/wp-includes/load.php (1)",
+        "src/wp-includes/class-wp-image-editor-imagick.php (1)"
+      ]
+    },
+    "function_exists_guards": {
+      "action": "Remove",
+      "rationale": "All 'is this old function still defined?' guards become dead code once the old functions are deleted in Phase 3A / 3B. Per AGENTS.md rule 12.",
+      "occurrences_approx": 605,
+      "files_approx": 182,
+      "hot_files": [
+        "src/wp-cron.php (2)",
+        "src/wp-trackback.php (2)",
+        "src/wp-mail.php (2)",
+        "src/wp-load.php (2)",
+        "src/wp-settings.php (1)"
+      ]
+    },
+    "var_properties": {
+      "action": "Migrate",
+      "rationale": "Convert each `var $foo` declaration to explicit `public|protected|private` per AGENTS.md rule 3. Per-module commits in Phase 3A / 4A / 4B as each module is converted; each converting commit adds the module to tools/modernize.php's allowlist in the same commit (AGENTS.md rule 1).",
+      "occurrences_approx": 160,
+      "files_approx": 24,
+      "examples": [
+        "src/wp-includes/atomlib.php (27)",
+        "src/wp-includes/class-pop3.php (9)",
+        "src/wp-includes/class-json.php (3)",
+        "src/wp-includes/ID3/getid3.php (2)"
+      ]
+    },
+    "untyped_signatures": {
+      "action": "Migrate",
+      "rationale": "Phase 3A / 4A / 4B / 5 add parameter + return types to every converted function. AGENTS.md rule 2. Documented per-module in the same commit as the typing change.",
+      "scope": "All wp-includes/ and wp-admin/ files touched by the module conversion. Phase 0 cannot enumerate every untyped signature across 22 years of code; the per-module commit lists the touched file and the allowlist entry."
+    },
+    "magic_quotes_request_mutation": {
+      "action": "Remove",
+      "rationale": "Superglobals never auto-slashed. MWC26 §6.1.",
+      "functions": ["wp_magic_quotes()", "add_magic_quotes()"],
+      "callers": ["src/wp-settings.php (the only real caller)"]
+    },
+    "magic_quotes_constants": {
+      "action": "Remove",
+      "rationale": "Constants checked downstream to decide whether to apply more escaping. With auto-slashing gone, the constants have no callers.",
+      "constants": ["MAGIC_QUOTES"],
+      "files": ["src/wp-includes/load.php"]
+    }
+  },
+  "classic_surfaces": {
+    "_note": "Hard removal per MODERNIZATION_PLAN.md Phase 3B. Classic-theme fixtures fail theme activation with a migration message; no silent downgrade path. None of these get an Isolate / Migrate label because the migration is one-time data conversion only — the runtime code is deleted.",
+    "tinymce": {
+      "action": "Remove",
+      "rationale": "Classic editor. Phase 3B removes the runtime; Gutenberg/block is the only editor.",
+      "paths": [
+        "src/js/_enqueues/vendor/tinymce/",
+        "src/js/_enqueues/vendor/tinymce/wp-tinymce.php",
+        "src/js/_enqueues/vendor/tinymce/plugins/",
+        "src/js/_enqueues/vendor/tinymce/themes/",
+        "src/js/_enqueues/vendor/tinymce/skins/",
+        "src/js/_enqueues/vendor/tinymce/utils/",
+        "src/js/_enqueues/vendor/tinymce/tinymce.js",
+        "src/js/_enqueues/vendor/tinymce/tinymce.min.js",
+        "src/js/_enqueues/vendor/tinymce/langs/",
+        "src/js/_enqueues/vendor/tinymce/license.txt"
+      ],
+      "files_referencing_tinymce": [
+        "src/wp-includes/script-loader.php",
+        "src/wp-includes/class-wp-editor.php",
+        "src/wp-includes/version.php",
+        "src/wp-admin/includes/update-core.php"
+      ]
+    },
+    "edit_post_screen_legacy": {
+      "action": "Remove",
+      "rationale": "Old Edit Post screen replaced by block editor (`edit-form-blocks.php`). Classic content opens but edits through the block editor — no fallback screen.",
+      "paths": [
+        "src/wp-admin/edit-form-advanced.php",
+        "src/wp-admin/edit-form-comment.php",
+        "src/wp-admin/edit-link-form.php"
+      ]
+    },
+    "classic_block": {
+      "action": "Remove",
+      "rationale": "Classic Block is a bridge block from the runtime-editor-compat era; with TinyMCE gone it has no rendering path. Phase 3B.",
+      "paths": [
+        "src/wp-includes/class-wp-classic-to-block-menu-converter.php"
+      ]
+    },
+    "customizer": {
+      "action": "Remove",
+      "rationale": "MWC26 §10.4. Template resolution goes through the routing/template service only.",
+      "paths": [
+        "src/wp-admin/customize.php",
+        "src/wp-includes/class-wp-customize-manager.php",
+        "src/wp-includes/class-wp-customize-control.php",
+        "src/wp-includes/class-wp-customize-setting.php",
+        "src/wp-includes/class-wp-customize-panel.php",
+        "src/wp-includes/class-wp-customize-section.php",
+        "src/wp-includes/class-wp-customize-nav-menus.php",
+        "src/wp-includes/class-wp-customize-widgets.php",
+        "src/wp-includes/customize/ (entire directory)"
+      ]
+    },
+    "classic_widgets": {
+      "action": "Remove",
+      "rationale": "Classic PHP widget runtime. Block-based widget editor is the only path.",
+      "paths": [
+        "src/wp-admin/widgets.php",
+        "src/wp-admin/widgets-form.php",
+        "src/wp-includes/widgets.php",
+        "src/wp-includes/default-widgets.php",
+        "src/wp-includes/widgets/class-wp-nav-menu-widget.php",
+        "src/wp-includes/class-wp-widget-text.php",
+        "src/wp-includes/class-wp-widget.php"
+      ],
+      "kept_for_block_editor": [
+        "src/wp-admin/widgets-form-blocks.php (block widget editor)"
+      ]
+    },
+    "admin_ajax_classic_handlers": {
+      "action": "Remove",
+      "rationale": "Targeted removal of dead classic-UI handlers (not wholesale AJAX removal). Keep admin-ajax.php / REST routes that back current (block-era) admin screens.",
+      "registered_handlers_approx": 153,
+      "files_with_handlers": [
+        "src/wp-admin/includes/ajax-actions.php (112)",
+        "src/wp-admin/admin-ajax.php (9)"
+      ],
+      "kept_handlers": "Block-era admin screen handlers (full list enumerated in the Phase 3B handler-keep audit; default = keep until proven dead)"
+    },
+    "xmlrpc": {
+      "action": "Remove",
+      "rationale": "External clients that needed XML-RPC moved to REST years ago. Removing it eliminates a parallel auth/serialization surface.",
+      "paths": [
+        "src/xmlrpc.php",
+        "src/wp-includes/class-wp-xmlrpc-server.php"
+      ]
+    },
+    "heartbeat_polling": {
+      "action": "Remove",
+      "rationale": "Used for classic-editor autosave/lock. If a current admin screen needs a heartbeat-style signal, it goes through modern REST/cache.",
+      "paths": [
+        "src/js/_enqueues/wp/heartbeat.js"
+      ]
+    },
+    "classic_content_to_blocks_conversion": {
+      "action": "Isolate",
+      "rationale": "One-time import tooling per Phase 3B task 3. Lives in compat/ or migration tooling, runs only via the explicit migration command — never on a normal request. Data (posts with classic markup) is preserved; the runtime conversion path is removed.",
+      "location": "compat/classic-content-to-blocks/ (created in Phase 3B; exercised end-to-end in Phase 7)"
+    }
+  },
+  "procedural_wrappers_and_legacy_apis": {
+    "_note": "AGENTS.md names additional procedural / legacy runtime surfaces that are removed in Phase 3A alongside the deprecated.php table. Listed here so every removal candidate is classified before any code moves.",
+    "wp_shims_transitional_wrappers": {
+      "action": "Remove",
+      "rationale": "AGENTS.md 'wp_*() shims (callers use MWC\\ directly).' Phase 3A removes each shim as its callers migrate to the MWC\\ namespace per AGENTS.md rule 14 (edit in place, no parallel v2).",
+      "examples": ["wp_get_sites (legacy multisite wrapper) — explicit in AGENTS.md removal list"]
+    },
+    "wp_error_inside_domain_logic": {
+      "action": "Remove",
+      "rationale": "AGENTS.md. Domain services throw typed exceptions instead. Phase 4A / 4B migrate each domain.",
+      "scope": "Return paths inside src/Domain/ replacements; not in wp-admin error UI helpers."
+    },
+    "query_posts": {
+      "action": "Remove",
+      "rationale": "AGENTS.md. Phase 4A's typed Content service replaces the procedural query_posts() call sites module by module.",
+      "callers": ["To be enumerated per-module; query_posts() is in src/wp-includes/query.php and is called from theme and plugin templates."]
+    },
+    "generic_meta_query_free_for_all": {
+      "action": "Remove",
+      "rationale": "AGENTS.md. WP_Query's meta_query is removed. Phase 4A's typed Content service provides the structured meta path.",
+      "callers": ["src/wp-includes/class-wp-query.php (meta_query SQL generation)"]
+    },
+    "regex_shortcode_runtime": {
+      "action": "Remove",
+      "rationale": "AGENTS.md. add_shortcode()/do_shortcode() are gone. Phase 4A's content service does not expose them.",
+      "files": ["src/wp-includes/shortcodes.php"]
+    }
+  },
+  "ai_infrastructure": {
+    "_note": "Hard removal per MODERNIZATION_PLAN.md 'Decisions that sharpen or override the Spec' and Phase 3B. Maintainer decision: these are 2026 WP 7.0 third-party-provider integrations and out of scope for this fork's stated purpose (own the stack, remove third-party telemetry). No replacement API. Migrate / Isolate do not apply.",
+    "php_ai_client_package": {
+      "action": "Remove",
+      "rationale": "Bundled `wordpress/php-ai-client` package and Composer/vendor footprint. Out of fork scope.",
+      "vendored_root": "vendor/wordpress/php-ai-client/ (if present) and tools/php-ai-client/ scaffolding (installer.sh, scoper.inc.php, reorganize.php)",
+      "core_callsite_count_approx": 30
+    },
+    "wp_ai_client_wrapper": {
+      "action": "Remove",
+      "rationale": "WordPress-side adapter that wraps the PHP AI Client with WP_Error / snake_case / WP HTTP transport. Gone with the SDK it wraps.",
+      "paths": [
+        "src/wp-includes/ai-client.php",
+        "src/wp-includes/ai-client/class-wp-ai-client-prompt-builder.php",
+        "src/wp-includes/ai-client/class-wp-ai-client-ability-function-resolver.php",
+        "src/wp-includes/ai-client/adapters/class-wp-ai-client-cache.php",
+        "src/wp-includes/ai-client/adapters/class-wp-ai-client-discovery-strategy.php",
+        "src/wp-includes/ai-client/adapters/class-wp-ai-client-event-dispatcher.php",
+        "src/wp-includes/ai-client/adapters/class-wp-ai-client-http-client.php"
+      ]
+    },
+    "abilities_api": {
+      "action": "Remove",
+      "rationale": "Machine-readable 'what can this site do' registry queried by core, plugins, and agent tooling. Out of fork scope.",
+      "paths": [
+        "src/wp-includes/abilities-api.php",
+        "src/wp-includes/abilities.php",
+        "src/wp-includes/abilities-api/class-wp-abilities-registry.php",
+        "src/wp-includes/abilities-api/class-wp-ability-categories-registry.php",
+        "src/wp-includes/abilities-api/class-wp-ability-category.php",
+        "src/wp-includes/abilities-api/class-wp-ability.php"
+      ],
+      "rest_routes": [
+        "src/wp-includes/rest-api/endpoints/class-wp-rest-abilities-v1-list-controller.php",
+        "src/wp-includes/rest-api/endpoints/class-wp-rest-abilities-v1-run-controller.php",
+        "src/wp-includes/rest-api/endpoints/class-wp-rest-abilities-v1-categories-controller.php"
+      ]
+    },
+    "connectors_api": {
+      "action": "Remove",
+      "rationale": "Third-party AI provider registration, admin Connectors settings screen, API-key storage, REST routes. Out of fork scope.",
+      "paths": [
+        "src/wp-includes/connectors.php",
+        "src/wp-includes/class-wp-connector-registry.php",
+        "src/wp-admin/options-connectors.php"
+      ],
+      "menu_entries": "src/wp-admin/menu.php (one entry to delete)",
+      "build_routes": [
+        "src/wp-includes/build/routes/connectors-home/"
+      ]
+    },
+    "mcp_adapter": {
+      "action": "Remove",
+      "rationale": "Integration points for the Model Context Protocol adapter. No MCP-compatible runtime in this fork.",
+      "scope": "Any wp_register_* / add_action references to MCP adapter hooks. Tracked via the Phase 0 grep audit (matches found in src/wp-includes/default-filters.php and src/wp-settings.php).",
+      "build_route_count_approx": 1
+    },
+    "official_ai_plugin_hooks": {
+      "action": "Remove",
+      "rationale": "Bundled hooks for AI-generated images / titles / excerpts / alt text. Features that have no purpose without the AI layer beneath them. Per Phase 3B 'delete the feature's UI entry point too, not just the backend call.'",
+      "scope": "Any core callsite that calls into wp_get_ability(), AI_Client::prompt(), or a connector. Full enumeration lives in tools/php-inventory.txt when the audit completes; for now, the Phase 0 grep audit returns these as the only AI symbols in core."
+    }
+  },
+  "removal_sniff_seeds": {
+    "_note": "Initial list of removed symbols that need a MWC.RemovedFunctions sniff entry in phpcs-2026.xml per AGENTS.md. The exhaustive list is built during each removal commit; this is the seed so a re-add of any of these symbols fails CI immediately.",
+    "sniff_entries": [
+      "wp_get_ability",
+      "wp_register_ability",
+      "wp_unregister_ability",
+      "WP_AI_Client_Prompt_Builder",
+      "WP_Connector_Registry",
+      "wp_get_connector",
+      "wp_register_connector",
+      "wp_unregister_connector",
+      "AI_Client::prompt",
+      "WP_AI_Client::prompt",
+      "wp_tinymce",
+      "wp_editor",
+      "WP_Customize_Manager",
+      "WP_Customize_Control",
+      "WP_Customize_Setting",
+      "WP_Widget (classic PHP widget class)",
+      "WP_XMLRPC_Server",
+      "WP_Heartbeat",
+      "wp_get_sites (legacy multisite wrapper)",
+      "wp_get_http (legacy HTTP wrapper)",
+      "wp_get_http_headers",
+      "_deprecated_function (helper, kept only if another deprecated caller remains)",
+      "_deprecated_file",
+      "_deprecated_argument"
+    ]
+  },
+  "audit_status": {
+    "current_state": "Phase 0 audit complete for tasks 2 (PHP symbols), 4 (AI/Connectors), 5 (classic surfaces). Counts and file lists are approximate and intended to size the work; an exhaustive per-file list is not required by the exit criteria and is deferred to per-phase conversion commits.",
+    "next_actions": [
+      "Phase 1 (platform floor) unblocks version_compare / function_exists bulk removal.",
+      "Phase 3A removes deprecated.php + helpers + magic quotes + FTP/FTPS/SSH + file editor + version-check polling.",
+      "Phase 3B removes TinyMCE + Edit Post screen + Classic Block + Customizer + classic widgets + dead admin-ajax handlers + XML-RPC + Heartbeat + all AI/Connectors/MCP surfaces.",
+      "Per-module commits in Phase 3A/4A/4B convert var properties and add types to untyped signatures.",
+      "Each removal in Phase 3B adds an MWC.RemovedFunctions sniff entry in the same commit."
+    ],
+    "outstanding": [
+      "Per-file symbol counts and exhaustive AI/Connectors caller lists will be generated by tools/audit.php when it's written (Phase 1 prerequisite). The current counts are ripgrep-based approximations, not a built audit script's output."
+    ]
+  }
+}

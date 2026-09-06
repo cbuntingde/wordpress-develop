@@ -1,0 +1,178 @@
+{
+  "$schema_note": "Phase 0 benchmark baseline (MODERNIZATION_PLAN.md Task 6). The schema below defines what the performance suite measures, the configurations it exercises, and where the raw numbers live when a run completes. Phase 0 captures the first run on the unmodified upstream baseline (696f277b37); every later commit re-runs the suite and any regression above the documented noise floor blocks the commit (Phase 6 exit criterion). This file is the comparison anchor — Phase 6 reads it when judging 'no regressions.' Real numbers are written by tests/performance/config/performance-reporter.js into artifacts/performance-results.json at run time; the placeholder schema below shows what the comparator will look at.",
+  "phase": 0,
+  "upstream_baseline": "696f277b37",
+  "purpose": "Capture query counts and response times for representative content / admin / REST flows on the unmodified upstream baseline. Phase 6 measures against this and refuses any commit that regresses above the noise floor.",
+  "suite_root": "tests/performance/",
+  "specs": [
+    {
+      "name": "Home",
+      "spec_file": "tests/performance/specs/home.test.js",
+      "subject": "Front-end home page",
+      "iterations_per_run": "$TEST_RUNS (default 5)",
+      "themes": ["twentytwentyone", "twentytwentythree", "twentytwentyfour", "twentytwentyfive"],
+      "locales": ["en_US", "de_DE"],
+      "metrics": [
+        "timeToFirstByte (TTFB) ms",
+        "largestContentfulPaint (LCP) ms",
+        "lcpMinusTtfb ms",
+        "wpDbQueries (server-timing)",
+        "wpMemoryUsage (server-timing)",
+        "wpExtObjCache (server-timing)",
+        "wpDbCalls (server-timing, when exposed)"
+      ],
+      "auth_state": "logged out"
+    },
+    {
+      "name": "Single Post",
+      "spec_file": "tests/performance/specs/single-post.test.js",
+      "subject": "Front-end single-post template",
+      "iterations_per_run": "$TEST_RUNS (default 5)",
+      "themes": ["twentytwentyone", "twentytwentythree", "twentytwentyfour", "twentytwentyfive"],
+      "locales": ["en_US", "de_DE"],
+      "target_url": "/2018/11/03/block-image/",
+      "metrics": [
+        "timeToFirstByte (TTFB) ms",
+        "largestContentfulPaint (LCP) ms",
+        "lcpMinusTtfb ms",
+        "wpDbQueries",
+        "wpMemoryUsage",
+        "wpExtObjCache",
+        "wpDbCalls (when exposed)"
+      ],
+      "auth_state": "logged out",
+      "cache_cleared_each_iteration": true
+    },
+    {
+      "name": "Admin",
+      "spec_file": "tests/performance/specs/admin.test.js",
+      "subject": "wp-admin dashboard",
+      "iterations_per_run": "$TEST_RUNS (default 5)",
+      "themes": ["twentytwentyone (fixed)"],
+      "locales": ["en_US", "de_DE"],
+      "metrics": [
+        "timeToFirstByte (TTFB) ms",
+        "wpDbQueries",
+        "wpMemoryUsage",
+        "wpExtObjCache",
+        "wpDbCalls (when exposed)"
+      ],
+      "auth_state": "logged in (admin)",
+      "cache_cleared_each_iteration": true
+    }
+  ],
+  "representative_flows_covered": [
+    {
+      "flow": "Content read (anonymous, front-end home)",
+      "spec": "Home",
+      "covers": "WP_Query on wp_posts + wp_options autoload + template hierarchy + wp_options transient cache"
+    },
+    {
+      "flow": "Content read (anonymous, single post)",
+      "spec": "Single Post",
+      "covers": "Single post fetch + comments (when present) + wp_postmeta + blocks rendering"
+    },
+    {
+      "flow": "Admin landing (authenticated)",
+      "spec": "Admin",
+      "covers": "wp-admin bootstrap + autoload fetch + capability checks + admin list widget query"
+    }
+  ],
+  "flows_NOT_yet_covered": [
+    {
+      "flow": "REST collection endpoints",
+      "rationale": "Phase 4B adds the typed REST controllers and the N+1 audit. The perf spec for /wp-json/wp/v2/posts and friends is added in the Phase 4B benchmark baseline update, not now — it measures work that hasn't been built yet.",
+      "owner": "Phase 4B"
+    },
+    {
+      "flow": "Block editor write path",
+      "rationale": "Covered indirectly by the Admin spec. A focused editor-render spec lands in the Phase 4B baseline update alongside the Blocks service.",
+      "owner": "Phase 4B"
+    },
+    {
+      "flow": "Multisite network dashboard",
+      "rationale": "Covered indirectly by the Admin spec. Multisite-specific spec lands in the Phase 4B baseline update alongside the Multisite service.",
+      "owner": "Phase 4B"
+    }
+  ],
+  "measurement_environment": {
+    "runtime": "Local Docker via docker-compose.yml; the local-env/ directory provisions PHP 8.5, MySQL 8.4, MariaDB 10.11. CI matrix (Phase 1) extends to all three engines.",
+    "browser": "Playwright Chromium (driven by tests/performance/playwright.config.js)",
+    "cache_state": "External object cache disabled unless explicitly enabled; per-iteration `?clear_cache` request flushes the WP cache so iteration N+1 starts cold",
+    "data_state": "Tests run against the upstream `wp-content/themes/twentytwentyone` and related fixtures; no production content imported"
+  },
+  "first_run_protocol": [
+    "Run the suite against upstream baseline 696f277b37 unmodified, in the local Docker env.",
+    "Capture artifacts/performance-results.json via the PerformanceReporter.",
+    "Compute median + median absolute deviation per metric per (theme, locale) combination (utils.js already has these helpers).",
+    "Record the captured numbers in tools/benchmark-baseline.json under `captured_at_696f277b37` (the field reserved below).",
+    "Phase 1+ may not begin until that field is populated."
+  ],
+  "captured_at_696f277b37": {
+    "git_commit": "696f277b37",
+    "captured_at": "2026-09-06T09:58:00Z",
+    "duration_minutes": 20.8,
+    "tests_run": 720,
+    "tests_passed": 720,
+    "iterations_per_combo": 20,
+    "repeats_per_combo": 2,
+    "samples_per_combo": 40,
+    "environment": {
+      "php": "8.3.33",
+      "mysql_or_mariadb": "MySQL 9.7.2",
+      "playwright_browser": "chromium",
+      "container_image": "wordpressdevelop/php:latest + mysql:9.7",
+      "note": "PHP 8.3.33 is below this fork's eventual floor (PHP 8.5) and below the AGENTS.md minimum. This baseline captures the unmodified upstream state at 696f277b37 on whatever Docker image the dev env ships today; Phase 1 must re-run this capture once the floor is enforced so future regressions are measured against a PHP-8.5-onwards baseline."
+    },
+    "metric_set": {
+      "captured": ["timeToFirstByte", "largestContentfulPaint", "lcpMinusTtfb"],
+      "not_captured": ["wpDbQueries", "wpMemoryUsage", "wpExtObjCache"],
+      "not_captured_reason": "Server-Timing entries exposed by tests/performance/wp-content/mu-plugins/server-timing.php did not surface via Playwright's metrics.getServerTiming() in this run. The DB-query and memory metrics remain Phase 6 targets; if a future baseline wants them, the mu-plugin / server-timing wiring needs to be verified before re-capture. The query-count numbers in tools/sql-inventory.json are the source of truth for that path until this is resolved."
+    },
+    "home": {
+      "twentytwentyone_en_US": { "ttfb_ms_median": 537.55, "ttfb_ms_mad": 51.4,  "lcp_ms_median": 570,    "lcp_ms_mad": 58,   "lcp_minus_ttfb_ms_median": 29.75, "lcp_minus_ttfb_ms_mad": 2.55 },
+      "twentytwentyone_de_DE": { "ttfb_ms_median": 510.05, "ttfb_ms_mad": 16.55, "lcp_ms_median": 542,    "lcp_ms_mad": 16,   "lcp_minus_ttfb_ms_median": 29.4,  "lcp_minus_ttfb_ms_mad": 2.35 },
+      "twentytwentythree_en_US": { "ttfb_ms_median": 319.2, "ttfb_ms_mad": 11.9,  "lcp_ms_median": 362,    "lcp_ms_mad": 14,   "lcp_minus_ttfb_ms_median": 40.25, "lcp_minus_ttfb_ms_mad": 5.55 },
+      "twentytwentythree_de_DE": { "ttfb_ms_median": 315.75, "ttfb_ms_mad": 9.05,  "lcp_ms_median": 358,    "lcp_ms_mad": 12,   "lcp_minus_ttfb_ms_median": 41.55, "lcp_minus_ttfb_ms_mad": 4.6  },
+      "twentytwentyfour_en_US": { "ttfb_ms_median": 505.5, "ttfb_ms_mad": 41.35, "lcp_ms_median": 560,    "lcp_ms_mad": 44,   "lcp_minus_ttfb_ms_median": 52.4,  "lcp_minus_ttfb_ms_mad": 2.5  },
+      "twentytwentyfour_de_DE": { "ttfb_ms_median": 547.5, "ttfb_ms_mad": 79.85, "lcp_ms_median": 594,    "lcp_ms_mad": 74,   "lcp_minus_ttfb_ms_median": 52.15, "lcp_minus_ttfb_ms_mad": 3.65 },
+      "twentytwentyfive_en_US": { "ttfb_ms_median": 548.05, "ttfb_ms_mad": 19.3,  "lcp_ms_median": 582,    "lcp_ms_mad": 22,   "lcp_minus_ttfb_ms_median": 33.95, "lcp_minus_ttfb_ms_mad": 3.4  },
+      "twentytwentyfive_de_DE": { "ttfb_ms_median": 542.5, "ttfb_ms_mad": 18.75, "lcp_ms_median": 574,    "lcp_ms_mad": 18,   "lcp_minus_ttfb_ms_median": 31.4,  "lcp_minus_ttfb_ms_mad": 1.3  }
+    },
+    "single_post": {
+      "twentytwentyone_en_US":  { "ttfb_ms_median": 521.5,  "ttfb_ms_mad": 34.6,  "lcp_ms_median": 564,    "lcp_ms_mad": 38,   "lcp_minus_ttfb_ms_median": 41.15, "lcp_minus_ttfb_ms_mad": 3.15 },
+      "twentytwentyone_de_DE":  { "ttfb_ms_median": 511.9,  "ttfb_ms_mad": 34.35, "lcp_ms_median": 558,    "lcp_ms_mad": 38,   "lcp_minus_ttfb_ms_median": 40.4,  "lcp_minus_ttfb_ms_mad": 2.95 },
+      "twentytwentythree_en_US":{ "ttfb_ms_median": 327.45, "ttfb_ms_mad": 9.05,  "lcp_ms_median": 376,    "lcp_ms_mad": 12,   "lcp_minus_ttfb_ms_median": 45.5,  "lcp_minus_ttfb_ms_mad": 6.6  },
+      "twentytwentythree_de_DE":{ "ttfb_ms_median": 328.35, "ttfb_ms_mad": 6.3,   "lcp_ms_median": 378,    "lcp_ms_mad": 10,   "lcp_minus_ttfb_ms_median": 46.25, "lcp_minus_ttfb_ms_mad": 4.55 },
+      "twentytwentyfour_en_US": { "ttfb_ms_median": 432.95, "ttfb_ms_mad": 34.55, "lcp_ms_median": 464,    "lcp_ms_mad": 28,   "lcp_minus_ttfb_ms_median": 32.55, "lcp_minus_ttfb_ms_mad": 2.5  },
+      "twentytwentyfour_de_DE": { "ttfb_ms_median": 423.55, "ttfb_ms_mad": 14.9,  "lcp_ms_median": 458,    "lcp_ms_mad": 14,   "lcp_minus_ttfb_ms_median": 31,    "lcp_minus_ttfb_ms_mad": 2.65 },
+      "twentytwentyfive_en_US": { "ttfb_ms_median": 608.5,  "ttfb_ms_mad": 33.85, "lcp_ms_median": 642,    "lcp_ms_mad": 28,   "lcp_minus_ttfb_ms_median": 35.75, "lcp_minus_ttfb_ms_mad": 2.85 },
+      "twentytwentyfive_de_DE": { "ttfb_ms_median": 604.25, "ttfb_ms_mad": 24.2,  "lcp_ms_median": 644,    "lcp_ms_mad": 24,   "lcp_minus_ttfb_ms_median": 38.55, "lcp_minus_ttfb_ms_mad": 3.9  }
+    },
+    "admin": {
+      "en_US": { "ttfb_ms_median": 138.95, "ttfb_ms_mad": 26.5,  "lcp_ms_median": null, "lcp_ms_mad": null, "lcp_minus_ttfb_ms_median": null, "lcp_minus_ttfb_ms_mad": null },
+      "de_DE": { "ttfb_ms_median": 140.55, "ttfb_ms_mad": 27.35, "lcp_ms_median": null, "lcp_ms_mad": null, "lcp_minus_ttfb_ms_median": null, "lcp_minus_ttfb_ms_mad": null }
+    },
+    "_admin_lcp_note": "The Admin spec only measures timeToFirstByte (admin.test.js does not call metrics.getLargestContentfulPaint()). LCP for the admin dashboard is a Phase 4B concern and lands alongside the Blocks service spec.",
+    "_schema_notes": {
+      "ttfb_ms_median": "Median of all timeToFirstByte samples for this (theme, locale) combo (40 = 20 iterations × 2 repeatEach).",
+      "ttfb_ms_mad": "Median absolute deviation of the same samples, used as the noise floor for the regression check (regression_policy.block_threshold_percent = 5).",
+      "lcp_ms_median / lcp_ms_mad": "Same shape for largestContentfulPaint.",
+      "lcp_minus_ttfb_ms_median / _mad": "Same shape for LCP-TTFB (render time after the first byte).",
+      "comparison_method": "Phase 6 compares per-metric, per-(theme, locale), median of new run vs. baseline median. MAD flags a noisy run before the comparison is trusted."
+    }
+  },
+  "regression_policy": {
+    "block_threshold_percent": 5,
+    "rationale": "A regression > 5 % from the median in either direction on the block-editor write path or any DB-query-count metric blocks the commit per MODERNIZATION_PLAN.md Phase 6 task 6 ('a regression blocks the commit, it doesn't get merged with a will-fix-later note'). The 5 % floor is chosen to be larger than the suite's median-absolute-deviation noise envelope on the local Docker env; a tighter threshold can be set after a few Phase 1 / 2 commits have empirical data.",
+    "comparison_method": "Per-metric, per-(theme, locale), median of new run vs. baseline median. MAD used to flag the run as noisy before the comparison is trusted."
+  },
+  "audit_status": {
+    "current_state": "Phase 0 baseline captured on 2026-09-06 against unmodified upstream at 696f277b37 (HEAD = 696f277b37, no fork-only commits). 720/720 tests passed in 20.8 minutes across home (4 themes × 2 locales), single-post (4 × 2), and admin (1 × 2). 40 samples per (spec, theme, locale) combination (20 iterations × 2 repeatEach). Server-timing DB-query and memory metrics did not surface in the Playwright capture this run; TTFB / LCP / LCP-TTFB medians + MADs are recorded. Suite lives at tests/performance/ with reporter at tests/performance/config/performance-reporter.js writing artifacts/performance-results.json.",
+    "next_actions": [
+      "Phase 1 (platform floor) re-runs this capture against PHP 8.5 / MySQL 8.4 / MariaDB 10.11 once the floor is enforced. The pre-Phase-1 capture above stays as the reference for any commit that lands on the unmodified PHP-8.3 env before Phase 1.",
+      "Phase 6 enforces the 5 % regression threshold against the most recent captured baseline.",
+      "Phase 4B's typed REST + Blocks + Multisite work adds new specs (and per-spec numbers) to this artifact before the corresponding code lands."
+    ]
+  }
+}

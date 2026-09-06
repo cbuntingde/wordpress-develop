@@ -1,0 +1,31 @@
+{
+  "phase": 0,
+  "task": "Phase 0 Task 1 — fork/tag the exact upstream WordPress commit used as the baseline.",
+  "fork": {
+    "branch": "trunk",
+    "release_tag": null,
+    "head": "696f277b3765407dc4d3fdc51b4f2c41f8ca1c2f",
+    "head_short": "696f277b37",
+    "head_message": "Themes: Set the `template` property when a theme is its own parent."
+  },
+  "upstream": {
+    "repository": "https://github.com/WordPress/wordpress-develop",
+    "remote": "origin",
+    "commit": "696f277b3765407dc4d3fdc51b4f2c41f8ca1c2f",
+    "commit_short": "696f277b37",
+    "date": "2026-09-06T05:16:12Z",
+    "subject": "Themes: Set the `template` property when a theme is its own parent.",
+    "tag": null
+  },
+  "verification": {
+    "local_head_matches_upstream": true,
+    "checked_at": "2026-09-06T05:16:12Z",
+    "notes": "`git rev-parse HEAD` on `trunk` returns the recorded upstream commit. No fork-only commits exist yet; this is the unmodified baseline at the start of Phase 0."
+  },
+  "divergence_tracking": {
+    "method": "MWC26 §34 — quarterly `git fetch upstream && git log upstream/trunk..trunk` review.",
+    "cadence": "Quarterly",
+    "responsible": "Maintainer",
+    "artifact": "Phase 10 (Documentation & Handoff) sets this up as a recurring process; until then divergence is recorded manually in this file."
+  }
+}
