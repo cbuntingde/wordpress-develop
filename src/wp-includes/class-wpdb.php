@@ -1802,6 +1802,46 @@ class wpdb {
 	}
 
 	/**
+	 * Renders a structured QueryBuilder into a prepared SQL string,
+	 * escaping and substituting its bindings through wpdb::prepare().
+	 *
+	 * Per MODERNIZATION_PLAN.md Phase 2 task 2 (MWC26 §7.3). The
+	 * QueryBuilder is the typed foundation core callers migrate to in
+	 * Phase 3A/4A/4B; wpdb::prepare() remains in place until no core
+	 * caller uses it directly.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @param QueryBuilder $builder The accumulated structured query.
+	 * @return string The fully-escaped SQL string, ready to pass to
+	 *                wpdb::query() / wpdb::get_results() / etc.
+	 */
+	public function buildQuery( QueryBuilder $builder ): string {
+		if ( ! ( $this->dialect instanceof DatabaseDialect ) ) {
+			return '';
+		}
+
+		$sql      = $builder->toSql( $this->dialect );
+		$bindings = $builder->bindings();
+
+		if ( array() === $bindings ) {
+			return $sql;
+		}
+
+		return $this->prepare( $sql, $bindings );
+	}
+
+	/**
+	 * Returns the connected engine's QueryBuilder factory. Convenience
+	 * accessor for callers that want a builder bound to this connection.
+	 *
+	 * @since 7.2.0
+	 */
+	public function newQueryBuilder(): QueryBuilder {
+		return new QueryBuilder();
+	}
+
+	/**
 	 * First half of escaping for `LIKE` special characters `%` and `_` before preparing for SQL.
 	 *
 	 * Use this only before wpdb::prepare() or esc_sql(). Reversing the order is very bad for security.
