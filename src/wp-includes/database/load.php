@@ -17,3 +17,4 @@ require_once ABSPATH . WPINC . '/database/class-database-dialect.php';
 require_once ABSPATH . WPINC . '/database/class-mysql-dialect.php';
 require_once ABSPATH . WPINC . '/database/class-mariadb-dialect.php';
 require_once ABSPATH . WPINC . '/database/class-query-builder.php';
+require_once ABSPATH . WPINC . '/database/class-migration-journal.php';
