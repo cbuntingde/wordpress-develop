@@ -4928,35 +4928,6 @@ function wp_ajax_search_install_plugins() {
 }
 
 /**
- * Handles editing a theme or plugin file via AJAX.
- *
- * @since 4.9.0
- *
- * @see wp_edit_theme_plugin_file()
- */
-function wp_ajax_edit_theme_plugin_file() {
-	$edit_result = wp_edit_theme_plugin_file( wp_unslash( $_POST ) ); // Validation of args is done in wp_edit_theme_plugin_file().
-
-	if ( is_wp_error( $edit_result ) ) {
-		wp_send_json_error(
-			array_merge(
-				array(
-					'code'    => $edit_result->get_error_code(),
-					'message' => $edit_result->get_error_message(),
-				),
-				(array) $edit_result->get_error_data()
-			)
-		);
-	} else {
-		wp_send_json_success(
-			array(
-				'message' => __( 'File edited successfully.' ),
-			)
-		);
-	}
-}
-
-/**
  * Handles exporting a user's personal data via AJAX.
  *
  * @since 4.9.6

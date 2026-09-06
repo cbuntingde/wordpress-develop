@@ -360,7 +360,6 @@ $current_theme_actions = array();
 if ( is_array( $submenu ) && isset( $submenu['themes.php'] ) ) {
 	$forbidden_paths = array(
 		'themes.php',
-		'theme-editor.php',
 		'site-editor.php',
 		'edit.php?post_type=wp_navigation',
 	);
