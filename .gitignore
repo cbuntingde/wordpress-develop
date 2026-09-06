@@ -118,3 +118,12 @@ wp-tests-config.php
 
 # Visual regression test diffs
 tests/visual-regression/specs/__snapshots__
+
+# Working notes for the maintainer. Per the docs policy these stay on disk
+# for the maintainer only and are not part of the shipped repository —
+# `README.md` is the only documentation a reader sees. Listed by exact name
+# at the repo root so they cannot be picked up by `git add .`.
+/AGENTS.md
+/CLAUDE.md
+/Modern_WordPress_Core.md
+/MODERNIZATION_PLAN.md
