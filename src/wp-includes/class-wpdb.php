@@ -644,11 +644,17 @@ class wpdb {
 	 * vendor. Application code reads this property and dispatches through
 	 * the DatabaseDialect interface.
 	 *
+	 * Untyped default (no `= null`): PHP 8.5 rejects default values on
+	 * readonly properties even in non-final classes. The property is
+	 * initialized by db_connect() before any caller can read it; the
+	 * only code path that returns without assigning it (WP_SETUP_CONFIG)
+	 * also does not read it.
+	 *
 	 * @since 7.2.0
 	 *
 	 * @var DatabaseDialect|null
 	 */
-	public readonly ?DatabaseDialect $dialect = null;
+	public readonly ?DatabaseDialect $dialect;
 
 	/**
 	 * A list of incompatible SQL modes.
