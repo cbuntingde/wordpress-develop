@@ -1848,6 +1848,129 @@ class wpdb {
 	}
 
 	/**
+	 * Current transaction nesting depth.
+	 *
+	 * `0` means no transaction is active. Top-level calls map to
+	 * `START TRANSACTION` / `COMMIT` / `ROLLBACK`; deeper levels map
+	 * to `SAVEPOINT sp_N` / `RELEASE SAVEPOINT sp_N` /
+	 * `ROLLBACK TO SAVEPOINT sp_N`. Nested `begin_transaction()` calls
+	 * are tracked on the PHP side; only the outermost call hits the
+	 * top-level transaction statements.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @var int
+	 */
+	private int $transaction_level = 0;
+
+	/**
+	 * Begins a transaction (top-level) or savepoint (nested).
+	 *
+	 * Per MODERNIZATION_PLAN.md Phase 2 task 3 (MWC26 §7.4). Savepoint
+	 * nesting lets a function open a transaction without knowing
+	 * whether a caller already opened one — the inner work commits or
+	 * rolls back independently of the outer transaction.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @return bool True on success, false if the BEGIN/SAVEPOINT failed.
+	 */
+	public function begin_transaction(): bool {
+		if ( 0 === $this->transaction_level ) {
+			$result = $this->query( 'START TRANSACTION' );
+		} else {
+			$result = $this->query( sprintf( 'SAVEPOINT sp_%1$d', $this->transaction_level + 1 ) );
+		}
+
+		if ( false === $result ) {
+			return false;
+		}
+
+		++$this->transaction_level;
+
+		return true;
+	}
+
+	/**
+	 * Commits the outermost transaction or releases the current savepoint.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @return bool True on success, false if no transaction is active or
+	 *              the COMMIT / RELEASE SAVEPOINT failed.
+	 */
+	public function commit(): bool {
+		if ( 0 === $this->transaction_level ) {
+			return false;
+		}
+
+		$savepoint = $this->transaction_level;
+		--$this->transaction_level;
+
+		if ( 1 === $savepoint ) {
+			return false !== $this->query( 'COMMIT' );
+		}
+
+		return false !== $this->query( sprintf( 'RELEASE SAVEPOINT sp_%1$d', $savepoint ) );
+	}
+
+	/**
+	 * Rolls back the current transaction or savepoint.
+	 *
+	 * On a nested rollback, only the work done after the corresponding
+	 * savepoint is undone; the outer transaction stays open. On an
+	 * outermost rollback, the entire transaction is undone and the
+	 * nesting depth resets to zero.
+	 *
+	 * @since 7.2.0
+	 *
+	 * @return bool True on success, false if no transaction is active or
+	 *              the ROLLBACK / ROLLBACK TO SAVEPOINT failed.
+	 */
+	public function rollback(): bool {
+		if ( 0 === $this->transaction_level ) {
+			return false;
+		}
+
+		$savepoint = $this->transaction_level;
+
+		if ( 1 === $savepoint ) {
+			$result = $this->query( 'ROLLBACK' );
+			$this->transaction_level = 0;
+
+			return false !== $result;
+		}
+
+		$result = $this->query( sprintf( 'ROLLBACK TO SAVEPOINT sp_%1$d', $savepoint ) );
+		--$this->transaction_level;
+
+		return false !== $result;
+	}
+
+	/**
+	 * Reports whether a transaction is currently active.
+	 *
+	 * @since 7.2.0
+	 */
+	public function in_transaction(): bool {
+		return $this->transaction_level > 0;
+	}
+
+	/**
+	 * Returns the current transaction nesting depth.
+	 *
+	 * `0` means no transaction is active. Use this when callers need
+	 * to make decisions based on whether they are running inside an
+	 * existing transaction (for example, to skip a `BEGIN` that would
+	 * otherwise confuse savepoint accounting).
+	 *
+	 * @since 7.2.0
+	 */
+	public function transaction_level(): int {
+		return $this->transaction_level;
+	}
+
+	/**
 	 * First half of escaping for `LIKE` special characters `%` and `_` before preparing for SQL.
 	 *
 	 * Use this only before wpdb::prepare() or esc_sql(). Reversing the order is very bad for security.
