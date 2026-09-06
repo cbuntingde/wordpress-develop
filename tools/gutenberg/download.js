@@ -22,7 +22,6 @@
  * @package WordPress
  */
 
-const { spawn } = require( 'child_process' );
 const crypto = require( 'crypto' );
 const fs = require( 'fs' );
 const os = require( 'os' );
@@ -30,6 +29,8 @@ const path = require( 'path' );
 const { Readable } = require( 'stream' );
 const { pipeline } = require( 'stream/promises' );
 const { Transform } = require( 'stream' );
+const tarFs = require( 'tar-fs' );
+const zlib = require( 'zlib' );
 const {
 	gutenbergDir,
 	readGutenbergConfig,
@@ -256,6 +257,13 @@ async function downloadBlobWithRetries( url, token, digest, expectedSize, ghcrRe
  * Extract a verified archive directly into the Gutenberg directory, removing
  * any existing directory first.
  *
+ * Uses Node-native tar-fs over a gunzip stream instead of spawning the system
+ * `tar` binary. Spawning `tar` fails on Windows because GNU tar (and several
+ * other distros' implementations) interpret drive-letter paths like
+ * `C:\Users\...` as `user@host:path` remote-host specifications and bail out
+ * with `Cannot connect to C: resolve failed`. Extracting in-process keeps the
+ * behavior identical on every platform.
+ *
  * @param {string} archivePath Path to the verified compressed blob.
  * @param {string} expectedSha Expected immutable Gutenberg source SHA.
  * @return {Promise<void>} Resolves after extraction completes.
@@ -264,20 +272,11 @@ async function extractVerifiedArchive( archivePath, expectedSha ) {
 	fs.rmSync( gutenbergDir, { recursive: true, force: true } );
 	fs.mkdirSync( gutenbergDir, { recursive: true } );
 
-	const tar = spawn( 'tar', [ '-xzf', archivePath, '-C', gutenbergDir ], {
-		stdio: [ 'ignore', 'inherit', 'inherit' ],
-	} );
-
-	await new Promise( ( resolve, reject ) => {
-		tar.on( 'close', ( code ) => {
-			if ( code !== 0 ) {
-				reject( new Error( `tar exited with code ${ code }` ) );
-				return;
-			}
-			resolve( undefined );
-		} );
-		tar.on( 'error', reject );
-	} );
+	await pipeline(
+		fs.createReadStream( archivePath ),
+		zlib.createGunzip(),
+		tarFs.extract( gutenbergDir )
+	);
 
 	const extractedHashPath = path.join( gutenbergDir, '.gutenberg-hash' );
 	const extractedSha = fs.readFileSync( extractedHashPath, 'utf8' ).trim();
