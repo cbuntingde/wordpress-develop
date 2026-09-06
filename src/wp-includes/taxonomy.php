@@ -2758,8 +2758,23 @@ function wp_insert_term( $term, $taxonomy, $args = array() ) {
 	$duplicate_term = apply_filters( 'wp_insert_term_duplicate_term_check', $duplicate_term, $term, $taxonomy, $args, $tt_id );
 
 	if ( $duplicate_term ) {
-		$wpdb->delete( $wpdb->terms, array( 'term_id' => $term_id ) );
-		$wpdb->delete( $wpdb->term_taxonomy, array( 'term_taxonomy_id' => $tt_id ) );
+		/*
+		 * Delete the just-inserted term and term_taxonomy atomically so a
+		 * partial failure can't leave the duplicate rows behind. The two
+		 * deletes are wrapped in a savepoint; if either fails, both
+		 * rows stay in place and we surface the error instead of silently
+		 * returning the duplicate's IDs with stale data attached.
+		 */
+		$wpdb->begin_transaction();
+		$deleted_term  = $wpdb->delete( $wpdb->terms, array( 'term_id' => $term_id ) );
+		$deleted_tt    = $wpdb->delete( $wpdb->term_taxonomy, array( 'term_taxonomy_id' => $tt_id ) );
+
+		if ( false === $deleted_term || false === $deleted_tt ) {
+			$wpdb->rollback();
+			return new WP_Error( 'db_delete_error', __( 'Could not delete duplicate term from the database.' ), $wpdb->last_error );
+		}
+
+		$wpdb->commit();
 
 		$term_id = (int) $duplicate_term->term_id;
 		$tt_id   = (int) $duplicate_term->term_taxonomy_id;
