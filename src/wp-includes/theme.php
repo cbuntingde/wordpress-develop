@@ -3541,9 +3541,10 @@ function _wp_customize_include() {
 	}
 
 	/*
-	 * Note that wp_unslash() is not being used on the input vars because it is
-	 * called before wp_magic_quotes() gets called. Besides this fact, none of
-	 * the values should contain any characters needing slashes anyway.
+	 * wp_unslash() is not used here: the request superglobals are no
+	 * longer auto-slashed by the runtime (Phase 3A Task 1 / MWC26
+	 * §6.1), and these values come from sanitized input that does not
+	 * contain characters needing slashes.
 	 */
 	$keys       = array(
 		'changeset_uuid',

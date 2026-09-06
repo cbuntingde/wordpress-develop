@@ -1294,25 +1294,14 @@ function wp_removable_query_args() {
  *
  * @since 0.71
  * @since 5.5.0 Non-string values are left untouched.
- *
- * @param array $input_array Array to walk while sanitizing contents.
- * @return array Sanitized $input_array.
- *
- * @phpstan-template T of array
- * @phpstan-param T $input_array
- * @phpstan-return array<key-of<T>, ( value-of<T> is string ? string : value-of<T> )>
+ * @since 7.2.0 Removed. Per Phase 3A Task 1 (MWC26 §6.1): PHP 7.0
+ *              removed magic_quotes_gpc, so request data is never
+ *              auto-slashed by the runtime anymore. The defense-in-
+ *              depth slashing this function performed is no longer
+ *              needed; the matching wp_unslash() callers throughout
+ *              the runtime are now no-ops on unslashed data, which
+ *              is safe.
  */
-function add_magic_quotes( $input_array ) {
-	foreach ( (array) $input_array as $k => $v ) {
-		if ( is_array( $v ) ) {
-			$input_array[ $k ] = add_magic_quotes( $v );
-		} elseif ( is_string( $v ) ) {
-			$input_array[ $k ] = addslashes( $v );
-		}
-	}
-
-	return $input_array;
-}
 
 /**
  * HTTP request for URI to retrieve content.

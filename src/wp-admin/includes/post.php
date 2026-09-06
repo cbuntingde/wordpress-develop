@@ -1192,8 +1192,6 @@ function _fix_attachment_links( $post ) {
 
 	if ( $replace ) {
 		$post['post_content'] = $content;
-		// Escape data pulled from DB.
-		$post = add_magic_quotes( $post );
 
 		return wp_update_post( $post );
 	}

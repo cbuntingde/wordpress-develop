@@ -2762,9 +2762,6 @@ function wp_update_user( $userdata ) {
 		$user[ $key ] = get_user_meta( $user_id, $key, true );
 	}
 
-	// Escape data pulled from DB.
-	$user = add_magic_quotes( $user );
-
 	if ( ! empty( $userdata['user_pass'] ) && $userdata['user_pass'] !== $user_obj->user_pass ) {
 		// If password is changing, hash it now.
 		$plaintext_pass        = $userdata['user_pass'];

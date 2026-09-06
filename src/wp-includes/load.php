@@ -1279,22 +1279,17 @@ function wp_set_internal_encoding() {
 /**
  * Adds magic quotes to `$_GET`, `$_POST`, `$_COOKIE`, and `$_SERVER`.
  *
- * Also forces `$_REQUEST` to be `$_GET + $_POST`. If `$_SERVER`,
- * `$_COOKIE`, or `$_ENV` are needed, use those superglobals directly.
+ * Removed per Phase 3A Task 1 (MWC26 §6.1): PHP 7.0 removed
+ * `magic_quotes_gpc`, so request data is never auto-slashed by the
+ * runtime anymore. This function used to slash it as a defense in
+ * depth; that defense is no longer needed and the matching
+ * `wp_unslash()` callers throughout the runtime are now no-ops on
+ * unslashed data, which is safe.
  *
  * @since 3.0.0
- * @access private
+ * @since 7.2.0 Removed.
  */
-function wp_magic_quotes() {
-	// Escape with wpdb.
-	$_GET    = add_magic_quotes( $_GET );
-	$_POST   = add_magic_quotes( $_POST );
-	$_COOKIE = add_magic_quotes( $_COOKIE );
-	$_SERVER = add_magic_quotes( $_SERVER );
 
-	// Force REQUEST to be GET + POST.
-	$_REQUEST = array_merge( $_GET, $_POST );
-}
 
 /**
  * Runs just before PHP shuts down execution.
