@@ -4,6 +4,10 @@
 
 This repository is a personal project. It is not affiliated with, endorsed by, or connected to WordPress, Automattic, or any of their affiliated organizations in any way.
 
+## Why AI Was Removed
+
+All artificial intelligence functionality was intentionally removed from this WordPress fork. The AI client SDK, Connectors API, and related infrastructure were introduced in upstream WordPress 7.0 but were controversial and problematic. For a full account of the security issues, developer pushback, and code-quality concerns that motivated this removal, see [docs/REMOVAL.md](docs/REMOVAL.md).
+
 ## Project Overview
 
 This repository contains a customized version of the WordPress platform. The primary modification involves the removal of all artificial intelligence-related features, components, and dependencies that were present in the upstream version.
