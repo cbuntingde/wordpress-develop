@@ -264,7 +264,6 @@ parameters:
 			- ../../src/wp-includes/class-wp-simplepie-sanitize-kses.php
 			- ../../src/wp-includes/class-wp-text-diff-renderer-inline.php
 			- ../../src/wp-includes/class-wp-text-diff-renderer-table.php
-			- ../../src/wp-includes/php-ai-client
 			- ../../src/wp-includes/pomo
 			- ../../src/wp-includes/rss.php
 			- ../../src/wp-includes/sodium_compat

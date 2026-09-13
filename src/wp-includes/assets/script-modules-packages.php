@@ -164,17 +164,6 @@
 		),
 		'version' => '561d400a81b4d92e0ab6'
 	),
-	'connectors/index.js' => array(
-		'dependencies' => array(
-			'react-jsx-runtime',
-			'wp-components',
-			'wp-data',
-			'wp-element',
-			'wp-i18n',
-			'wp-private-apis'
-		),
-		'version' => '8aa4346de9f4f9cbfaef'
-	),
 	'core-abilities/index.js' => array(
 		'dependencies' => array(
 			'wp-api-fetch',

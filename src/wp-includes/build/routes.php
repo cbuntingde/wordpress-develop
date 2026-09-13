@@ -92,25 +92,6 @@ function wp_register_page_routes( $page_routes, $register_function_name ) {
 }
 
 // Page-specific route registration functions
-// Page-specific route registration functions for options-connectors
-/**
- * Register routes for options-connectors page (full-page mode).
- */
-function wp_register_options_connectors_page_routes() {
-	global $wp_options_connectors_routes_data;
-	wp_register_page_routes( $wp_options_connectors_routes_data, 'wp_register_options_connectors_route' );
-}
-add_action( 'options-connectors_init', 'wp_register_options_connectors_page_routes' );
-
-/**
- * Register routes for options-connectors page (wp-admin mode).
- */
-function wp_register_options_connectors_wp_admin_page_routes() {
-	global $wp_options_connectors_routes_data;
-	wp_register_page_routes( $wp_options_connectors_routes_data, 'wp_register_options_connectors_wp_admin_route' );
-}
-add_action( 'options-connectors-wp-admin_init', 'wp_register_options_connectors_wp_admin_page_routes' );
-
 // Page-specific route registration functions for font-library
 /**
  * Register routes for font-library page (full-page mode).
